@@ -1,0 +1,333 @@
+================================================================================
+BlueROV2 Heavy / rov4_vslam  --  BRING-UP CHECKPOINT
+Date:      2026-09-15
+Topside:   Ubuntu 20.04, Docker 26.1.3, 16 cores, Intel iGPU
+Vehicle:   BlueROV2 Heavy, BlueOS at 192.168.2.2
+Repo:      https://github.com/AdolfoCA/rov4_vslam.git  (commit f4f198f)
+Working copy: /home/andrea/rov4_vslam   (changes uncommitted, ready for review)
+
+Context: the repo had NEVER been run against hardware and the Docker image had
+never been built. This was the first hardware bring-up.
+
+================================================================================
+1. HEADLINE
+================================================================================
+
+IMU and camera are connected and delivering correct data on ROS 2 topics.
+DVL is connected and delivering reports, but its measurements cannot be
+validated out of water.
+
+Three blocking code bugs were found and fixed. Two of them would stop this
+repo on ANY machine, not just this one.
+
+Foxglove bridge verified working (see 4.7). Test plan status: Stages 0-4 pass.
+Stage 5 (signs/frames) not started. Stage 6 done except for a visual check in
+the Foxglove app. Stage 7 not done.
+
+================================================================================
+2. WHAT WE DISCOVERED -- NETWORK
+================================================================================
+
+2.1  The DVL is NOT at the factory address.
+     Expected 192.168.2.95, actually answers at 192.168.2.128.
+     Found by sweeping the subnet; confirmed by its web UI ("Water Linked DVL
+     GUI") and TCP 16171 being open.
+
+2.2  BlueOS PUSHES MAVLink and video to a hardcoded 192.168.2.1.
+     Queried from BlueOS itself:
+       GET /ardupilot-manager/v1.0/endpoints/
+         GCS Client Link   udpout  192.168.2.1:14550   enabled=True
+       GET /mavlink-camera-manager/streams
+         endpoints: ["udp://192.168.2.1:5600"], H264 1920x1080@30, running
+     DHCP from BlueOS had given this laptop 192.168.2.135, so both streams were
+     going nowhere. The DVL was unaffected because the container dials OUT to
+     it over TCP.
+
+2.3  The "dial out instead" workaround does NOT work.
+     Tested `ros2 launch ... rov_ip:=192.168.2.2` (selects
+     udpout:192.168.2.2:14550). No heartbeat, three attempts. So holding
+     192.168.2.1 on the topside NIC is currently mandatory.
+
+2.4  `sudo ip addr add` is NOT good enough.
+     The address silently disappeared mid-session (NetworkManager reapplied its
+     DHCP-only profile). Symptom: IMU and camera went completely dead while the
+     DVL kept working normally. Very easy to misdiagnose as a code fault.
+     The durable form is `nmcli con mod <profile> +ipv4.addresses 192.168.2.1/24`.
+
+2.5  This laptop had no Ethernet port at all at the start of the session; a USB
+     Ethernet adapter was required (RTL8153).
+
+================================================================================
+3. WHAT WE DISCOVERED -- CODE  (3 bugs, all fixed)
+================================================================================
+
+BUG 1 -- Dockerfile: image cannot build.  [blocks everyone]
+  Symptom: Step 17/21, colcon build dies with
+           PermissionError: [Errno 13] Permission denied: 'log'
+  Cause:   `COPY --chown=$UID:$GID ros2_ws/src .../ros2_ws/src` sets ownership
+           on src only. Docker creates the implicit PARENT ros2_ws as root:root,
+           so the unprivileged user cannot create build/ install/ log/.
+  Fix:     RUN chown $UID:$GID /home/$USERNAME/ros2_ws   (before USER switch)
+
+BUG 2 -- imu_node.py:143: node never starts.  [blocks everyone]
+  Symptom: AttributeError: 'ClockOffsetEstimator' object has no attribute
+           'handle', thrown from create_timer(); node respawn-loops forever.
+  Cause:   `self._clock = ClockOffsetEstimator(...)` shadows the attribute
+           rclpy.node.Node uses internally for its own Clock.
+  Fix:     renamed to self._clock_sync (4 references).
+  Note:    the 60 unit tests cannot catch this -- they exercise
+           ClockOffsetEstimator standalone, with no ROS node.
+
+BUG 3a -- camera_node.py: segfault on startup.
+  Symptom: process dies instantly with SIGSEGV, no Python traceback, no log
+           output whatsoever.
+  Cause:   importing gi/GStreamer AFTER rclpy corrupts the next Node()
+           construction inside the _rclpy C extension.
+           Verified both directions: gi-then-rclpy works, rclpy-then-gi crashes.
+  Fix:     moved the GStreamer import block above the rclpy imports.
+  Found with: PYTHONFAULTHANDLER=1, which produced the stack that plain stderr
+           did not.
+
+BUG 3b -- camera_node.py: 1 fps instead of 30.
+  Symptom: node logs "camera 1.0 fps" while the stream is 30 fps.
+  Cause:   `image.data = frame.tobytes()`. rosidl's generated setter has ONE
+           fast path, array.array('B'). Anything else falls into
+           `all(isinstance(v, int) for v in value)` over every byte.
+           Measured: 322 ms for one 1080p BGR frame = a 3 fps hard ceiling.
+  Fix:     image.data = array.array('B', frame.tobytes())
+           Same fix applied to the CompressedImage publisher.
+           Benchmarked: 321.24 ms -> 3.37 ms, ~95x, byte-identical output.
+  Result:  1.0 fps -> 32.0 fps.
+
+================================================================================
+4. WHAT WE CHECKED  (measurements, all taken this session)
+================================================================================
+
+4.1  Wire level, before ROS was involved (Stage 2):
+       ping 192.168.2.2      4/4 replies, avg 9.9 ms
+       udp/14550             702 pkts in 6 s (117/s), first bytes fd1c = MAVLink v2
+       udp/5600              6034 pkts in 6 s (1003/s), 1308 KiB/s,
+                             first bytes 8060 = RTP payload type 96 (H.264)
+       tcp 192.168.2.128:16171  JSON stream, format json_v3.1
+
+4.2  Build and tests (Stage 0/3):
+       docker compose build   OK after BUG 1 fix; image 2.9 GB
+       colcon test            60 tests, 0 errors, 0 failures
+                              (re-run after all edits: still 60/60)
+
+4.3  IMU (Stage 4a):
+       ATTITUDE_QUATERNION 50 Hz, RAW_IMU 100 Hz, SCALED_PRESSURE 10 Hz
+       clock offset stable across samples
+       linear_acceleration  = (-2.19, +0.18, +10.01) m/s2
+       angular_velocity     = (-0.008, -0.001, +0.003) rad/s
+       orientation_covariance[0] on data_raw = -1.0  (correct per spec)
+       pressure             = 101450 Pa
+       magnetic field       = 21.0 uT
+       temperature          = 59.5 C
+
+       *** THE CRITICAL CHECK PASSES: accel.z is POSITIVE (+10.01). ***
+       The FRD->FLU conversion is applied correctly. A -9.81 here would have
+       meant every downstream estimate was wrong.
+       Cross-check: accel.x = -2.19 matches the reported 13 deg nose-up
+       attitude to within 0.01, so accelerometer and attitude solution agree.
+
+4.4  Camera (Stage 4c):
+       node reports 31.8 - 32.0 fps
+       /camera/image_raw     1920x1080 bgr8, frame_id = camera_link_optical
+       /camera/camera_info   1920x1080, k[0] = 0.0 (placeholder, as documented)
+       A frame pulled off the ROS topic decodes cleanly - correct colours, no
+       tearing. Saved to data/ros_frame.png.
+
+4.5  DVL (Stage 4b, dry):
+       112 messages in 12 s on /bluerov2/dvl/report
+       velocity_valid = False, 0/4 beams valid, altitude = -1.0, fom = 10.0
+       /dvl/velocity and /dvl/altitude silent
+       *** This is CORRECT behaviour in air, not a fault. *** An acoustic DVL
+       out of water has nothing to reflect off.
+
+4.6  TF tree publishes: base_link -> imu_link, dvl_link, camera_link ->
+     camera_link_optical. static_tf_node correctly warns that the extrinsics
+     are still identity placeholders.
+
+4.7  Foxglove bridge (Stage 6) -- WORKS.
+     Earlier in the session it failed with "Failed to bind port: Address
+     already in use". That was NOT a bug in the stack: a stale foxglove_bridge
+     left over from our own earlier test run was still holding :8765. After
+     `docker compose restart bluerov2` it starts correctly.
+
+       $ ss -ltnp | grep 8765
+       LISTEN 0 128 0.0.0.0:8765 users:(("foxglove_bridge",pid=37895,fd=25))
+
+     It advertises all 17 channels (imu/*, dvl/*, camera/*).
+
+     Websocket handshake tested directly against the bridge:
+       subprotocol 'foxglove.websocket.v1' -> HTTP/1.1 400 Bad Request
+       subprotocol 'foxglove.sdk.v1'       -> HTTP/1.1 101 Switching Protocols
+         first message op = serverInfo
+         capabilities = [connectionGraph, parameters, parametersSubscribe,
+                         services, assets]
+         supportedEncodings = [cdr, json]
+
+     IMPORTANT: this foxglove_bridge build (3.5.0, Humble) speaks ONLY the
+     newer subprotocol `foxglove.sdk.v1`. A Foxglove client that knows only
+     the older `foxglove.websocket.v1` is rejected with 400 Bad Request and
+     simply appears "unable to connect".
+
+     Note: `capabilities` correctly does NOT include clientPublish, so nothing
+     in this stack can be commanded from the visualisation tool. That matches
+     the author's stated intent.
+
+     The client on this laptop is Foxglove Studio 2.51.0, installed from
+     foxglove-studio-latest-linux-amd64.deb into /opt/Foxglove.
+     It DOES support the required subprotocol -- both strings are present in
+     /opt/Foxglove/resources/app.asar -- so NO UPDATE IS NEEDED on this
+     machine. On a different laptop with an older Studio, an update would be
+     the fix rather than touching the bridge.
+
+     To connect:  ws://localhost:8765
+                  ws://<this-laptop-ip>:8765   from another machine
+     Must be ws://, not http://. The container uses host networking, so no
+     port mapping is involved.
+
+     VISUAL CHECK DONE: layout imported, connected, topics visible and the
+     camera frame renders. Stage 6 is complete.
+
+     GOTCHA found during that check -- the shipped layout cannot work on a
+     first import. config/foxglove_layout.json binds the Image panel to a
+     calibration topic:
+         "imageTopic":       "/bluerov2/camera/image_raw/compressed"
+         "calibrationTopic": "/bluerov2/camera/camera_info"
+     but config/camera_info.yaml is deliberately a placeholder with all-zero
+     intrinsics, so Foxglove reports "invalid focal length" and refuses to
+     render the image. Both files are individually correct; together they
+     contradict each other.
+     Workaround used (no file changed): in the Image panel settings sidebar,
+     set Calibration to None. Adding a fresh Image panel also works, since a
+     new panel starts with no calibration bound.
+     Permanent fix, once someone decides: either drop "calibrationTopic" from
+     the layout, or ship a real calibration. NOT changed - deliberately left
+     as-is, since this session was about connections, not calibration.
+
+================================================================================
+5. WHAT WE ADJUSTED
+================================================================================
+
+5.1  On this laptop (host side):
+       - added 192.168.2.1/24 to the USB Ethernet NIC, made PERSISTENT via
+         `nmcli con mod "Wired connection 3" +ipv4.addresses 192.168.2.1/24`
+       - installed Docker Compose v2 plugin to ~/.docker/cli-plugins/
+         (Ubuntu's docker.io package does not ship it)
+       NOTHING WAS CHANGED ON THE ROBOT. BlueOS was only ever read from, over
+       HTTP.
+
+5.2  In the repo (all uncommitted, 5 files changed):
+       Dockerfile                                  BUG 1 fix + explanatory comment
+       docker-compose.yaml                         DVL_IP .95 -> .128
+       config/bluerov2.yaml                        dvl host .95 -> .128
+       bluerov2_imu/imu_node.py                    BUG 2 fix (_clock -> _clock_sync)
+       bluerov2_camera/camera_node.py              BUG 3a + 3b fixes
+       TOPSIDE_SETUP.md                    (new)   per-laptop setup, for the README
+       data/verify_all.py                  (new)   prints every topic + a sample value
+       data/grab_ros_frame.py              (new)   saves a frame off the image topic
+       data/check_imu.py                   (new)   averages IMU signals over a window
+
+================================================================================
+6. WHAT IS STILL MISSING
+================================================================================
+
+6.1  Stage 5 of TEST_PLAN.md -- NOT STARTED. Needs someone physically moving
+     the vehicle. This is the stage the author calls the most important one,
+     because sign errors are invisible in a topic listing and catastrophic in
+     an estimator:
+       - bow up should give NEGATIVE angular_velocity.y
+       - starboard down 90 deg should give accel = (0, +9.81, 0)
+       - bow down 90 deg should give accel = (-9.81, 0, 0)
+       - heading in ENU: north = 90 deg, east = 0, south = 270, west = 180
+     Only the static level-ish case was verified.
+
+6.2  Foxglove -- bridge RESOLVED and verified, see 4.7. What remains is only
+     the visual check: open Foxglove Studio, connect to ws://localhost:8765,
+     import config/foxglove_layout.json via Layout -> Import from file, and
+     confirm the video, IMU plots and DVL plots actually render. Point the
+     Image panel at camera/image_raw/compressed, not the raw topic.
+
+6.3  Everything in water: DVL velocity and its signs, altitude against a tape
+     measure, bottom lock.
+
+6.4  Stage 7: no reference rosbag recorded.
+
+6.5  Camera calibration. camera_info.k[0] = 0.0. Must be calibrated IN WATER --
+     a flat port scales focal length by roughly the refractive index (~1.33).
+
+6.6  Sensor extrinsics. Still identity placeholders. A DVL lever arm wrong by
+     5 cm injects a phantom velocity of omega x r.
+
+================================================================================
+7. ODDITIES -- worked, but looked wrong
+================================================================================
+
+7.1  |a| = 10.26 m/s2 at rest, 4.5% above 9.81. The driver's MAVLink scaling
+     constants were checked and are correct per spec, so this points at an
+     uncalibrated accelerometer. Run the ArduSub accel calibration.
+
+7.2  |B| = 21 uT. Italy should be roughly 47 uT. Suggests the magnetometer
+     needs calibrating in ArduSub. Would show up as a constant heading offset.
+
+7.3  IMU temperature 59.5 C. Plausible for electronics in a sealed enclosure,
+     but worth a look.
+
+7.4  DVL dead reckoning reports positions of hundreds of km with a std of
+     ~8e6 m. Consistent with never having had bottom lock, but MUST be
+     re-checked in water before any SLAM consumes that topic.
+
+7.5  The DVL's internal clock is about 2 years slow (reports 2024-05-27).
+     Harmless as things stand: dvl_node.py:250 stamps on arrival from the ROS
+     clock and carries the instrument times only as separate fields. Would be
+     confusing in a bag file.
+
+7.6  MAVLink heartbeat is reported as "system 0, component 0, autopilot type 8".
+     Type 8 is MAV_AUTOPILOT_INVALID, which is what a ground station sends
+     rather than an autopilot. Data flows correctly at full rate, so this is
+     cosmetic, but the driver is arguably latching onto the wrong heartbeat.
+
+7.7  UNDIAGNOSED: a separate Python process subscribing to raw /camera/image_raw
+     reads only ~3 fps, while the node publishes at 32 fps (its own counter, and
+     camera_info from the same callback measures 32 Hz at that same external
+     subscriber). Enabling shared memory changed nothing. This was NOT resolved.
+     It matters if the VSLAM front end runs as a separate process from the
+     driver - which for a VSLAM stack it probably will.
+
+================================================================================
+8. QUESTIONS FOR THE AUTHOR (Adolfo)
+================================================================================
+
+8.1  Was 192.168.2.1 a deliberate assumption? It is the reason every topside
+     laptop needs manual network setup. Pointing the BlueOS endpoints at
+     192.168.2.255 (broadcast) would make the container genuinely plug and
+     play. That is a change ON THE ROBOT and has not been made.
+
+8.2  Why does rtps_udp_profile.xml force plain UDPv4 with
+     useBuiltinTransports=false? The comment says shared memory "buys nothing"
+     over Ethernet. Relevant to item 7.7.
+
+8.3  What is meant to consume /camera/image_raw -- a node inside this container,
+     or a separate process? The answer decides whether 7.7 matters.
+
+================================================================================
+9. HOW TO REPRODUCE TODAY'S STATE
+================================================================================
+
+  cd /home/andrea/rov4_vslam
+  docker compose up -d
+  docker compose exec bluerov2 bash
+  # inside:
+  ros2 launch bluerov2_bringup bluerov2.launch.py
+  # in a second shell:
+  docker compose exec bluerov2 bash -lc 'python3 ~/data/verify_all.py'
+
+  Only ONE process may bind UDP 5600 and 14550. Stop any gst-launch or second
+  launch first. Stale nodes cause identical symptoms;
+  `docker compose restart bluerov2` clears them.
+
+  See TOPSIDE_SETUP.md for what a fresh laptop needs.
+================================================================================
