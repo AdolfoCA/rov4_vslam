@@ -17,6 +17,16 @@ NOTE: the original file placed a <license> element next to <profiles>, giving it
 root elements. That is not well-formed XML, so Fast DDS rejects the whole file and
 silently falls back to its defaults - the profile appears to be loaded but does nothing.
 The licence text now lives in this comment, which is where it belongs.
+
+Receive buffer (added 2026-09-15): a raw 1080p bgr8 frame is 6.2 MB and goes out as a
+burst of about 100 RTPS fragments. With no size set, each socket gets the kernel default
+of about 208 KB, the receiving socket overflows, and because the camera topic is
+BEST_EFFORT a frame with a single lost fragment is dropped whole. Measured with a
+separate subscriber (ros2 bag record): 5 of 184 frames arrived; with a 32 MB receive
+buffer, 186 of 186. The send side never overflowed, so only the receive size is set.
+
+The kernel silently caps this request at net.core.rmem_max. Every topside laptop must
+raise that limit once, or this setting does nothing. See TOPSIDE_SETUP.md, section 2.
 -->
 
 <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
@@ -24,6 +34,7 @@ The licence text now lives in this comment, which is where it belongs.
         <transport_descriptor>
             <transport_id>CustomUdpTransport</transport_id>
             <type>UDPv4</type>
+            <receiveBufferSize>33554432</receiveBufferSize>
         </transport_descriptor>
     </transport_descriptors>
 
