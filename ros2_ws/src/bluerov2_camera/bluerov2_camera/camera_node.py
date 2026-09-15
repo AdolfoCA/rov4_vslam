@@ -36,17 +36,14 @@ apply the result without touching this code.
 
 from __future__ import annotations
 
+import array
 import threading
 from typing import Optional
 
-import numpy as np
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CameraInfo, CompressedImage, Image
-
-from bluerov2_camera.calibration import load_camera_info, uncalibrated_camera_info
-
+# GStreamer MUST be imported before rclpy. Importing gi/Gst *after* rclpy leaves the
+# process in a state where the very next rclpy Node() construction segfaults inside the
+# _rclpy C extension (rclpy/node.py:175), with no Python-level error. Verified on
+# ros:humble-ros-base: gi-then-rclpy works, rclpy-then-gi crashes. Keep this block first.
 try:
     import gi
 
@@ -58,6 +55,15 @@ except (ImportError, ValueError) as exc:  # pragma: no cover
         "PyGObject with GStreamer 1.0 typelibs is required. Inside the container these "
         "come from python3-gi and gir1.2-gst-plugins-base-1.0."
     ) from exc
+
+
+import numpy as np
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
+
+from bluerov2_camera.calibration import load_camera_info, uncalibrated_camera_info
 
 try:
     import cv2
@@ -263,7 +269,11 @@ class BlueRov2CameraNode(Node):
         image.encoding = "bgr8"
         image.is_bigendian = 0
         image.step = width * 3
-        image.data = frame.tobytes()
+        # rosidl only fast-paths array.array('B'). Assigning bytes/ndarray falls into a
+        # per-element `all(isinstance(v, int) ...)` validation loop over every byte:
+        # 322 ms for a 1080p BGR frame, i.e. a 3 fps ceiling. This is ~95x faster and
+        # produces byte-identical payloads.
+        image.data = array.array('B', frame.tobytes())
         self._pub_image.publish(image)
 
         info = self._camera_info
@@ -288,7 +298,7 @@ class BlueRov2CameraNode(Node):
                 compressed.header.stamp = stamp
                 compressed.header.frame_id = self._frame_id
                 compressed.format = "jpeg"
-                compressed.data = encoded.tobytes()
+                compressed.data = array.array('B', encoded.tobytes())
                 self._pub_compressed.publish(compressed)
 
         with self._counter_lock:
