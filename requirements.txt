@@ -1,0 +1,15 @@
+# Python dependencies installed into the image.
+#
+# Note: cv_bridge is deliberately NOT here. The PyPI package of that name is unrelated
+# to ROS and shadows the real one; the ROS build comes from apt (ros-humble-cv-bridge).
+
+# MAVLink protocol implementation used by the IMU driver.
+pymavlink==2.4.42
+
+# numpy is pinned below 2.0 because the Humble ROS Python packages and the system
+# OpenCV in this image are built against the 1.x ABI.
+numpy==1.26.4
+scipy==1.11.4
+opencv-python==4.10.0.84
+matplotlib==3.8.4
+pandas==2.2.3

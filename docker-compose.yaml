@@ -1,0 +1,75 @@
+services:
+  bluerov2:
+    container_name: bluerov2_ros2
+    # Built locally with `docker compose build` (~10 min the first time).
+    image: bluerov2-ros2:humble
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USERNAME: rosdev
+        UID: 1000
+        GID: 1000
+
+    environment:
+      - USERNAME=rosdev
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/usr/local/share/middleware_profiles/rtps_udp_profile.xml
+      - ROS_DOMAIN_ID=0
+      # X11 forwarding for rviz2 / rqt_image_view
+      - DISPLAY=${DISPLAY:-:0}
+      - XDG_RUNTIME_DIR=/tmp/runtime-rosdev
+      - QT_X11_NO_MITSHM=1
+
+      # ---------------------------------------------------------------------------
+      # TODO(deployment): the vehicle's network. These are the BlueROV2 defaults; the
+      # launch file reads ROV_IP / DVL_IP through its rov_ip and dvl_ip arguments, and
+      # the parameter file carries the same values, so set them in one place and pass
+      # them through:
+      #
+      #   ros2 launch bluerov2_bringup bluerov2.launch.py \
+      #     rov_ip:=$ROV_IP dvl_ip:=$DVL_IP
+      #
+      # Topside is normally 192.168.2.1/24 on the interface facing the tether
+      # interface board. Check with: ping $ROV_IP
+      # ---------------------------------------------------------------------------
+      - ROV_IP=192.168.2.2          # BlueOS / Raspberry Pi on the ROV
+      - DVL_IP=192.168.2.95         # Water Linked DVL-A50
+      - MAVLINK_PORT=14550          # UDP, MAVLink from BlueOS to topside
+      - DVL_PORT=16171              # TCP, Water Linked JSON protocol
+      - CAMERA_UDP_PORT=5600        # UDP, H.264 RTP from BlueOS
+
+    volumes:
+      # Live editing: the workspace source is the host directory, so a change on the
+      # host needs only `build_ws` inside the container, not an image rebuild.
+      - ./ros2_ws/src:/home/rosdev/ros2_ws/src:cached
+      # Somewhere to drop rosbags that survives the container.
+      - ./data:/home/rosdev/data:rw
+      # X11
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY:-$HOME/.Xauthority}:/home/rosdev/.Xauthority:rw
+      # Time sync with the host
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+
+    # host networking is not a convenience here, it is a requirement: the drivers need
+    # to receive UDP sent to this machine's address (MAVLink 14550, video 5600) and to
+    # reach 192.168.2.0/24 directly. A bridge network would drop the inbound UDP.
+    #
+    # It also means no port mapping is needed for the Foxglove bridge: it listens on
+    # this host's :8765 directly, so Foxglove connects to ws://<this-host>:8765 from
+    # anywhere on the network. If you ever move off host networking, you would need
+    #   ports: ["8765:8765"]
+    # here, and the UDP inputs would need their own mappings.
+    network_mode: host
+
+    # Only needed for direct hardware access (a USB serial MAVLink link, a local
+    # camera). Drop both lines if everything reaches you over Ethernet.
+    privileged: true
+    devices:
+      - /dev:/dev
+
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+    command: /bin/bash

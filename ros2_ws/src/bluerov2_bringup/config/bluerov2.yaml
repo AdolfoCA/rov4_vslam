@@ -1,0 +1,124 @@
+# Parameters for the BlueROV2 Heavy sensor drivers.
+#
+# The '/**/' prefix is a wildcard for any namespace, so these apply whether the nodes
+# run at the root or under the default 'bluerov2' namespace.
+#
+# Every value marked TODO must be checked against the actual vehicle before a field
+# trial. The rest are reasonable defaults, not measurements.
+
+/**/imu_node:
+  ros__parameters:
+    # TODO(network): how this host reaches ArduSub.
+    #   udpin:0.0.0.0:14550      listen for the stream BlueOS pushes to topside (default)
+    #   udpout:192.168.2.2:14550 connect out to the ROV instead
+    #   tcp:192.168.2.2:5760     direct TCP to a MAVLink server (also works for SITL)
+    connection_url: "udpin:0.0.0.0:14550"
+    source_system: 255
+    source_component: 190
+    target_system: 1
+    target_component: 1
+
+    frame_id: "imu_link"
+
+    # RAW_IMU is the Navigator's primary ICM-20602. SCALED_IMU2 / SCALED_IMU3 are the
+    # other IMUs if your board populates them.
+    raw_imu_message: "RAW_IMU"
+
+    # ArduSub streams at low default rates; these are what the node asks for. Do not
+    # push raw_imu_rate_hz much past 100 Hz over a tether without checking that the
+    # link keeps up - dropped MAVLink packets are worse than a lower honest rate.
+    attitude_rate_hz: 50.0
+    raw_imu_rate_hz: 100.0
+    pressure_rate_hz: 10.0
+
+    publish_magnetic_field: true
+    # The Navigator barometer sits inside the sealed enclosure: it measures hull
+    # pressure, not depth. Depth comes from the external Bar30, which this driver
+    # does not read.
+    publish_pressure: true
+    publish_temperature: true
+
+    # Stamp messages with the vehicle clock, mapped onto ROS time by a minimum-filter
+    # offset estimator, instead of stamping on arrival. Set false to stamp on arrival.
+    use_mavlink_time: true
+    clock_window_seconds: 30.0
+
+    # TODO(calibration): replace with values from an Allan variance run on your unit.
+    # These are order-of-magnitude figures for a consumer MEMS IMU and will make any
+    # estimator that trusts them over-confident.
+    linear_acceleration_stddev: 0.05    # m/s^2
+    angular_velocity_stddev: 0.005      # rad/s
+    orientation_stddev: 0.02            # rad
+    magnetic_field_stddev: 1.0e-6       # T
+
+    connection_timeout_s: 10.0
+    reconnect_period_s: 3.0
+    stream_request_period_s: 10.0
+
+/**/dvl_node:
+  ros__parameters:
+    # TODO(network): confirm in the DVL's own web UI. 192.168.2.95 is what Water Linked
+    # ships for the BlueROV2 integration.
+    host: "192.168.2.95"
+    port: 16171
+
+    frame_id: "dvl_link"
+    odom_frame_id: "dvl_odom"
+
+    # The A50 reports in FRD; ROS wants FLU. Leave true unless you handle the
+    # convention downstream.
+    rotate_to_flu: true
+
+    publish_dead_reckoning: true
+    publish_range: true
+
+    # Used only when the instrument sends no usable covariance and no figure of merit.
+    fallback_velocity_stddev: 0.02          # m/s
+    dead_reckoning_position_stddev: 0.1     # m
+
+    # A50 acoustics.
+    range_min: 0.05
+    range_max: 50.0
+    beam_field_of_view: 0.3927              # 22.5 deg
+
+    connect_timeout_s: 5.0
+    read_timeout_s: 2.0
+    reconnect_period_s: 3.0
+
+    # Publish a gap rather than a confidently wrong velocity when bottom lock is lost.
+    drop_invalid_velocity: true
+
+/**/camera_node:
+  ros__parameters:
+    # TODO(network): the BlueOS video page decides this. 5600 is the first stream.
+    udp_port: 5600
+    jitter_buffer_ms: 50
+
+    # Leave empty to use the built-in UDP H.264 pipeline. To pull RTSP instead:
+    #   pipeline_override: "rtspsrc location=rtsp://192.168.2.2:8554/video latency=100
+    #     ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR
+    #     ! appsink name=ros_sink emit-signals=true sync=false max-buffers=2 drop=true"
+    pipeline_override: ""
+
+    frame_id: "camera_link_optical"
+    camera_name: "bluerov2_lowlight"
+
+    # TODO(calibration): produce this with camera_calibration, in water, in the same
+    # housing you will fly. A flat port shifts the effective focal length by roughly
+    # the refractive index of water, so an in-air calibration does not transfer.
+    #   camera_info_url: "/home/rosdev/ros2_ws/src/bluerov2_bringup/config/camera_info.yaml"
+    camera_info_url: ""
+
+    # JPEG republishing costs CPU (roughly a fifth of a core at 1080p30) but is what
+    # makes video usable over a websocket: raw bgr8 at 1080p30 is ~186 MB/s against
+    # ~5 MB/s as JPEG. The launch file overrides this to true whenever the Foxglove
+    # bridge is running; see the compressed_video argument.
+    publish_compressed: false
+    jpeg_quality: 85
+
+    # TODO(calibration): measure the encode + tether + decode latency and put the
+    # negative of it here if you need the camera aligned with the IMU.
+    timestamp_offset_s: 0.0
+
+    watchdog_period_s: 5.0
+    restart_after_silence_s: 10.0

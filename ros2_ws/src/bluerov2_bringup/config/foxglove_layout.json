@@ -1,0 +1,209 @@
+{
+  "configById": {
+    "3D!scene": {
+      "cameraState": {
+        "distance": 12,
+        "perspective": true,
+        "phi": 60,
+        "thetaOffset": 45,
+        "targetOffset": [0, 0, 0],
+        "target": [0, 0, 0],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_link",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.5
+        }
+      },
+      "transforms": {
+        "frame:base_link": { "visible": true },
+        "frame:imu_link": { "visible": true },
+        "frame:dvl_link": { "visible": true },
+        "frame:camera_link": { "visible": true },
+        "frame:camera_link_optical": { "visible": true }
+      },
+      "topics": {
+        "/bluerov2/dvl/altitude": { "visible": true },
+        "/bluerov2/dvl/dead_reckoning_odometry": { "visible": true }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "size": 20,
+          "divisions": 20,
+          "frameId": "base_link"
+        }
+      },
+      "publish": { "type": "point" }
+    },
+
+    "Image!camera": {
+      "cameraState": { "distance": 5, "perspective": false },
+      "imageMode": {
+        "imageTopic": "/bluerov2/camera/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/camera/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+
+    "Plot!imu_gyro": {
+      "title": "IMU angular velocity [rad/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "roll rate"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "pitch rate"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "yaw rate"
+        }
+      ],
+      "showLegend": true,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30
+    },
+
+    "Plot!imu_accel": {
+      "title": "IMU specific force [m/s^2]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "ax"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "ay"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "az (about +9.81 at rest)"
+        }
+      ],
+      "showLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+
+    "Plot!dvl_velocity": {
+      "title": "DVL bottom-track velocity [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "surge"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "sway"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "heave"
+        }
+      ],
+      "showLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+
+    "Plot!dvl_quality": {
+      "title": "DVL quality: altitude [m] and figure of merit [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.altitude",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "altitude"
+        },
+        {
+          "value": "/bluerov2/dvl/report.fom",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "figure of merit"
+        }
+      ],
+      "showLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+
+    "RawMessages!dvl_report": {
+      "topicPath": "/bluerov2/dvl/report",
+      "expansion": "none"
+    }
+  },
+
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": { "speed": 1 },
+
+  "layout": {
+    "first": {
+      "first": "3D!scene",
+      "second": "Image!camera",
+      "direction": "column",
+      "splitPercentage": 55
+    },
+    "second": {
+      "first": {
+        "first": "Plot!imu_gyro",
+        "second": "Plot!imu_accel",
+        "direction": "column",
+        "splitPercentage": 50
+      },
+      "second": {
+        "first": "Plot!dvl_velocity",
+        "second": {
+          "first": "Plot!dvl_quality",
+          "second": "RawMessages!dvl_report",
+          "direction": "column",
+          "splitPercentage": 55
+        },
+        "direction": "column",
+        "splitPercentage": 40
+      },
+      "direction": "column",
+      "splitPercentage": 50
+    },
+    "direction": "row",
+    "splitPercentage": 55
+  }
+}

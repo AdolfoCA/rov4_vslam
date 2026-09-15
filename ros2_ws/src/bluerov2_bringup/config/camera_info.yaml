@@ -1,0 +1,51 @@
+# PLACEHOLDER camera calibration - these numbers are NOT a calibration.
+#
+# The intrinsics below are a plausible guess for a 1920x1080 stream from the BlueROV2
+# low-light USB camera (roughly 80 deg horizontal field of view in air), with zero
+# distortion. Using them for anything metric will produce plausible-looking and wrong
+# results, which is the worst kind.
+#
+# Replace them by running, with the camera in its housing and IN WATER:
+#
+#   ros2 run camera_calibration cameracalibrator \
+#     --size 8x6 --square 0.030 \
+#     --ros-args -r image:=/bluerov2/camera/image_raw \
+#                -r camera:=/bluerov2/camera
+#
+# then point camera_node's camera_info_url at the file it writes.
+#
+# Why in water: a flat viewport between water and air refracts, and to first order it
+# scales the focal length by the refractive index of water (about 1.33) while adding
+# radial distortion that no in-air calibration captures. A dome port behaves better but
+# still needs its own calibration.
+
+image_width: 1920
+image_height: 1080
+camera_name: bluerov2_lowlight
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1150.0,    0.0,  960.0,
+            0.0, 1150.0,  540.0,
+            0.0,    0.0,    1.0]
+
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1150.0,    0.0,  960.0, 0.0,
+            0.0, 1150.0,  540.0, 0.0,
+            0.0,    0.0,    1.0, 0.0]

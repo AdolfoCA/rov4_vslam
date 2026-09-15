@@ -1,0 +1,92 @@
+# Sensor extrinsics for the BlueROV2 Heavy — published on /tf_static by bluerov2_tf.
+#
+# =====================================================================================
+# TODO(deployment): EVERY NUMBER BELOW IS A PLACEHOLDER. Measure them on the vehicle.
+# =====================================================================================
+#
+# These are the transforms the whole stack is built on, and they are the easiest thing
+# here to get wrong in a way that never announces itself. A DVL lever arm that is off by
+# five centimetres injects a velocity error of (omega x r): at 20 deg/s of yaw that is
+# about 1.7 cm/s of phantom sway, which an estimator will integrate straight into drift.
+# Nothing will look broken. The trajectory will just curve.
+#
+# Frame tree:
+#
+#     base_link ──> imu_link
+#               ──> dvl_link
+#               ──> camera_link ──> camera_link_optical
+#
+# base_link is the vehicle body frame in REP-103 conventions: x forward, y left, z up,
+# origin conventionally at the vehicle's centre of rotation. Every child is expressed in
+# its parent's frame: 'translation' is where the child's origin sits, 'rpy' is how the
+# child's axes are rotated relative to the parent.
+#
+# Rotation input, per transform:
+#   rpy: [roll, pitch, yaw]   intrinsic Z-Y-X, the ROS convention
+#   units: radians | degrees  (default radians; degrees are easier to read off a drawing)
+#   quaternion: [x, y, z, w]  instead of rpy, for values from a calibration routine
+#
+# How to fill these in properly:
+#   1. Start from CAD or a tape measure for the translations.
+#   2. Take the rotations from how each sensor is bolted on - most will be 0 or a
+#      multiple of 90 degrees, and the interesting cases are the ones that are not.
+#   3. Refine on real data: for the DVL, a hand-eye style estimation over a dataset with
+#      plenty of rotation; for the camera, a target visible while the vehicle moves.
+#
+# The node warns at startup about any transform left at exact identity, so a forgotten
+# placeholder shows up in the log rather than in your results.
+
+/**/static_tf_node:
+  ros__parameters:
+
+    transforms:
+      - imu
+      - dvl
+      - camera
+      - camera_optical
+
+    # --- IMU --------------------------------------------------------------------
+    # The Navigator sits inside the electronics enclosure. Its origin is the IMU chip
+    # on the board, not the enclosure centre. If the board is mounted rotated (a
+    # common reason for a "the vehicle thinks it is sideways" bug), that goes in rpy —
+    # note this is the *physical* mounting, separate from ArduSub's own AHRS_ORIENTATION
+    # parameter, so be careful not to apply the same rotation twice.
+    imu:
+      parent: base_link
+      child: imu_link
+      translation: [0.0, 0.0, 0.0]      # TODO measure
+      rpy: [0.0, 0.0, 0.0]              # TODO confirm board orientation
+      units: degrees
+
+    # --- DVL --------------------------------------------------------------------
+    # The A50 is mounted looking down, usually under the vehicle. Its origin is the
+    # transducer face centre. This is the lever arm that matters most — see above.
+    dvl:
+      parent: base_link
+      child: dvl_link
+      translation: [0.0, 0.0, -0.10]    # TODO measure: ~10 cm below base_link
+      rpy: [0.0, 0.0, 0.0]              # TODO confirm; a yaw offset here is common
+      units: degrees
+
+    # --- Camera -----------------------------------------------------------------
+    # camera_link follows the robot convention (x forward), so it is the frame to
+    # measure against. Tilt goes in pitch: a camera angled 20 deg downward is
+    # rpy: [0, 20, 0] — positive pitch is nose-down about the y (left) axis.
+    camera:
+      parent: base_link
+      child: camera_link
+      translation: [0.20, 0.0, 0.0]     # TODO measure: forward of base_link
+      rpy: [0.0, 0.0, 0.0]              # TODO set the tilt if the camera is angled
+      units: degrees
+
+    # --- Camera optical frame ------------------------------------------------------
+    # DO NOT EDIT. This is the fixed REP-103 relationship between the robot convention
+    # (x forward, y left, z up) and the vision convention (x right, y down, z forward)
+    # that every camera algorithm and every CameraInfo assumes. It is a property of the
+    # conventions, not of your vehicle. Physical camera placement belongs above.
+    camera_optical:
+      parent: camera_link
+      child: camera_link_optical
+      translation: [0.0, 0.0, 0.0]
+      rpy: [-90.0, 0.0, -90.0]
+      units: degrees

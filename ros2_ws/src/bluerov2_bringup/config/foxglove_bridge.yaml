@@ -1,0 +1,57 @@
+# Foxglove bridge configuration.
+#
+# The bridge exposes the ROS graph over one websocket. Foxglove connects to
+# ws://<this-host>:8765 and can then see every topic, parameter and service below.
+
+/**/foxglove_bridge:
+  ros__parameters:
+    # 0.0.0.0 accepts connections from other machines on the network - which is the
+    # point, if Foxglove runs on a different laptop than the drivers. Set 127.0.0.1 to
+    # keep it local to this machine.
+    address: "0.0.0.0"
+    port: 8765
+
+    # Everything is visible. The bridge only actually sends a topic once a client
+    # subscribes to it, so a permissive list costs nothing until someone opens a panel.
+    # To hide topics from clients entirely, list regexes here instead, e.g.
+    #   topic_whitelist: ["/bluerov2/imu/.*", "/bluerov2/dvl/.*", "/tf.*"]
+    topic_whitelist: [".*"]
+    param_whitelist: [".*"]
+    service_whitelist: [".*"]
+    client_topic_whitelist: [".*"]
+
+    # Capabilities offered to clients. 'clientPublish' lets Foxglove publish onto ROS
+    # topics; it is deliberately absent, because nothing in this stack should be
+    # commandable from a visualisation tool. Add it only if you know you want it.
+    capabilities:
+      - parameters
+      - parametersSubscribe
+      - services
+      - connectionGraph
+      - assets
+
+    # QoS depth the bridge uses when it subscribes on a client's behalf. The sensor
+    # topics are best-effort with a shallow queue, so a deep buffer here would only add
+    # latency to live viewing.
+    max_qos_depth: 10
+    min_qos_depth: 1
+
+    # If a client cannot keep up, the bridge buffers up to this many bytes before
+    # dropping the connection. 100 MB is generous, sized for video: at 1080p30 JPEG
+    # (~5 MB/s) it absorbs roughly 20 s of backlog over a slow link.
+    send_buffer_limit: 100000000
+
+    # Websocket-level deflate. Left off on purpose: JPEG and H.264 payloads are already
+    # compressed so it burns CPU for nothing, and the numeric topics are small enough
+    # that it does not matter. Turn it on only if you are tunnelling over a genuinely
+    # narrow link and the CPU is free.
+    use_compression: false
+
+    num_threads: 0          # 0 = one per hardware thread
+
+    # Serve mesh and URDF files to Foxglove's 3D panel. Restricted to package:// URIs
+    # so a client cannot ask the bridge to read arbitrary files off this machine.
+    asset_uri_allowlist:
+      - "^package://(?!.*\\.\\.).*\\.(dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|tif|tiff|urdf|xacro)$"
+
+    include_hidden: false

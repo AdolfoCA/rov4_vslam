@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!--
+Fast DDS transport profile: force plain UDPv4 and disable the builtin transports.
+
+Why: by default Fast DDS also brings up shared memory, and on a laptop that is talking
+to a vehicle over Ethernet the shared-memory transport buys nothing while adding a
+failure mode (stale /dev/shm segments left behind by a container that was killed, which
+make discovery hang until they are cleared). Pinning the participant to a single UDPv4
+transport keeps the middleware behaviour the same inside and outside the container.
+
+Adapted from the NVIDIA Isaac ROS profile of the same name.
+Copyright (c) 2022, NVIDIA CORPORATION. Licensed under the NVIDIA Isaac ROS Software
+License.
+
+NOTE: the original file placed a <license> element next to <profiles>, giving it two
+root elements. That is not well-formed XML, so Fast DDS rejects the whole file and
+silently falls back to its defaults - the profile appears to be loaded but does nothing.
+The licence text now lives in this comment, which is where it belongs.
+-->
+
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>CustomUdpTransport</transport_id>
+            <type>UDPv4</type>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <participant profile_name="participant_profile" is_default_profile="true">
+        <rtps>
+            <userTransports>
+                <transport_id>CustomUdpTransport</transport_id>
+            </userTransports>
+
+            <useBuiltinTransports>false</useBuiltinTransports>
+        </rtps>
+    </participant>
+</profiles>
