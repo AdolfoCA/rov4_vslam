@@ -217,16 +217,27 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
          `nmcli con mod "Wired connection 3" +ipv4.addresses 192.168.2.1/24`
        - installed Docker Compose v2 plugin to ~/.docker/cli-plugins/
          (Ubuntu's docker.io package does not ship it)
+       - raised the kernel UDP receive buffer limit, made PERSISTENT via
+         /etc/sysctl.d/90-ros-dds.conf:  net.core.rmem_max=67108864
+         (default 212992). Required for raw camera frames, see 7.7.
        NOTHING WAS CHANGED ON THE ROBOT. BlueOS was only ever read from, over
        HTTP.
 
-5.2  In the repo (all uncommitted, 5 files changed):
+5.2  In the repo (committed on branch Andrea_updates):
        Dockerfile                                  BUG 1 fix + explanatory comment
        docker-compose.yaml                         DVL_IP .95 -> .128
        config/bluerov2.yaml                        dvl host .95 -> .128
        bluerov2_imu/imu_node.py                    BUG 2 fix (_clock -> _clock_sync)
        bluerov2_camera/camera_node.py              BUG 3a + 3b fixes
        TOPSIDE_SETUP.md                    (new)   per-laptop setup, for the README
+
+     Added later the same day (also on Andrea_updates):
+       rtps_udp_profile.xml                        receiveBufferSize 32 MB, see 7.7
+       bluerov2_bringup/launch/record.launch.py  (new)  rosbag recorder, see 10
+       bluerov2_bringup/package.xml                exec_depend ros2bag,
+                                                   rosbag2_storage_mcap
+       TOPSIDE_SETUP.md                            step 2e (rmem_max), section 6
+                                                   Recording, fix 4
 
      Three scratch helpers were also written -- data/verify_all.py,
      data/grab_ros_frame.py, data/check_imu.py. They are NOT committed: data/
@@ -294,12 +305,32 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
      rather than an autopilot. Data flows correctly at full rate, so this is
      cosmetic, but the driver is arguably latching onto the wrong heartbeat.
 
-7.7  UNDIAGNOSED: a separate Python process subscribing to raw /camera/image_raw
-     reads only ~3 fps, while the node publishes at 32 fps (its own counter, and
-     camera_info from the same callback measures 32 Hz at that same external
-     subscriber). Enabling shared memory changed nothing. This was NOT resolved.
-     It matters if the VSLAM front end runs as a separate process from the
-     driver - which for a VSLAM stack it probably will.
+7.7  RESOLVED (later the same day): raw /camera/image_raw lost by other processes.
+     Symptom: every subscriber other than the camera node - Python, and the C++
+              rosbag2 recorder alike - got image_raw at 1-3 fps, while camera_info
+              from the same callback arrived at 32 Hz.
+     Cause:   rtps_udp_profile.xml set no socket buffer size, so each Fast DDS UDP
+              socket got the kernel default of 212992 bytes. A 6.2 MB frame goes
+              out as a burst of ~100 RTPS fragments; the receiving socket
+              overflowed, and on a BEST_EFFORT topic one lost fragment drops the
+              whole frame. Proof: Udp RcvbufErrors in /proc/net/snmp rose by 2156
+              during a 6 s recording.
+              Shared memory "changed nothing" earlier because Fast DDS only uses it
+              when BOTH ends enable it, and the camera node was still on the
+              UDP-only profile.
+     Fix:     host  net.core.rmem_max=67108864 in /etc/sysctl.d/90-ros-dds.conf
+              repo  <receiveBufferSize>33554432</receiveBufferSize> in
+                    rtps_udp_profile.xml, image rebuilt, container recreated.
+              Both halves are needed: the kernel silently caps the request at
+              rmem_max.
+     Measured, 6 s `ros2 bag record` of image_raw + camera_info:
+              before                  image_raw    5  (camera_info 184)  RcvbufErrors 2156
+              rmem_max raised only    image_raw   11  (camera_info 184)  RcvbufErrors 2116
+              rmem_max + profile      image_raw  187  (camera_info 187)  RcvbufErrors 0
+     record.launch.py with all defaults, 9.7 s: image_raw 310,
+     image_raw/compressed 310, camera_info 310, RcvbufErrors 0.
+     Check that the profile is live: `ss -uamp` shows rb67108864 on the
+     subscriber's sockets (the kernel doubles the 32 MB request).
 
 ================================================================================
 8. QUESTIONS FOR THE AUTHOR (Adolfo)
@@ -312,10 +343,14 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
 
 8.2  Why does rtps_udp_profile.xml force plain UDPv4 with
      useBuiltinTransports=false? The comment says shared memory "buys nothing"
-     over Ethernet. Relevant to item 7.7.
+     over Ethernet. UPDATE: 7.7 is now fixed within that choice (bigger UDP
+     receive buffer), so shared memory is not needed for full-rate raw frames.
+     Still worth confirming the intent, since shared memory would avoid copying
+     6.2 MB frames through the loopback at all.
 
 8.3  What is meant to consume /camera/image_raw -- a node inside this container,
-     or a separate process? The answer decides whether 7.7 matters.
+     or a separate process? UPDATE: since 7.7 is fixed, a separate process now
+     receives all frames (187/187), so this no longer blocks anything.
 
 ================================================================================
 9. HOW TO REPRODUCE TODAY'S STATE
@@ -336,5 +371,42 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
   launch first. Stale nodes cause identical symptoms;
   `docker compose restart bluerov2` clears them.
 
+  Record, in another shell inside the container (details in section 10):
+  ros2 launch bluerov2_bringup record.launch.py
+
   See TOPSIDE_SETUP.md for what a fresh laptop needs.
+
+================================================================================
+10. RECORDING  (added later the same day)
+================================================================================
+
+  bluerov2_bringup/launch/record.launch.py runs rosbag2's C++ recorder (MCAP).
+  A Python node was rejected: raw video is ~187 MB/s and Python cannot keep up.
+  Humble has no composable recorder node, so it runs as a process.
+
+  Every sensor is recorded by default; switch one off with a launch argument:
+    imu:=false  dvl:=false  camera:=false  camera_raw:=false
+    camera_compressed:=false  tf:=false  logs:=false
+  Also: bag_name, output_dir (default ~/data = rov4_vslam/data on the host),
+  storage (mcap), max_bag_duration (60 s per file, 0 = one file).
+
+  All sensors share one bag and one ROS clock. Nothing is resampled or dropped
+  to align them; each message keeps its driver's header.stamp plus the time it
+  was recorded. Align offline by header.stamp.
+
+  Verified on the vehicle (in air), all defaults, 9.7 s, 3 split files, 1.9 GiB:
+    imu/data_raw 956 (~100 Hz)   imu/data 478 (~50 Hz)   imu/pressure 96
+    imu/mag 957  imu/temperature 957
+    camera/image_raw 310   image_raw/compressed 310   camera_info 310  (~32 fps)
+    dvl/report 44   dvl/dead_reckoning 31   dvl/dead_reckoning_odometry 31
+    dvl/velocity 0 and dvl/altitude 0 (correct in air, see 4.5)
+    /tf_static 1   /rosout 35   /tf absent (nothing publishes it)
+    UDP RcvbufErrors 0. Ctrl-C closes the bag cleanly.
+  Test bags deleted afterwards.
+
+  DISK: raw video fills ~11 GB/minute. This laptop has ~5 GB free, i.e. under
+  30 s of raw recording. Use camera_raw:=false or an external drive for dives.
+
+  NOT CHANGED: start_mission --record still runs its own `ros2 bag record` with
+  a shorter topic list; it does not use record.launch.py yet.
 ================================================================================

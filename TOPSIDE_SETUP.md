@@ -77,6 +77,21 @@ docker compose version
 
 **d. Disk.** The image is ~2.9 GB built; allow ~8 GB free for the build.
 
+**e. Allow large UDP receive buffers, permanently.** Without this, raw camera frames
+(`camera/image_raw`, 6.2 MB each) are lost by any process other than the camera node
+itself: `ros2 bag record`, `ros2 topic hz`, a VSLAM node. Requires sudo, once per laptop:
+
+```bash
+echo 'net.core.rmem_max=67108864' | sudo tee /etc/sysctl.d/90-ros-dds.conf
+sudo sysctl --system
+sysctl net.core.rmem_max        # must print 67108864
+```
+
+`rtps_udp_profile.xml` asks Fast DDS for a 32 MB receive buffer, but the kernel silently
+caps that request at `rmem_max`, whose default is ~208 KB. Both halves are needed: the
+limit alone changes nothing (measured: 11 of 184 frames), the profile alone is capped.
+See section 7, fix 4, for the measurements.
+
 ---
 
 ## 3. Per-vehicle configuration
@@ -137,9 +152,50 @@ python3 ~/data/grab_ros_frame.py  # saves a frame from /camera/image_raw to data
 
 ---
 
-## 6. Code fixes this bring-up required
+## 6. Recording
 
-All three were blockers; none had ever run against hardware.
+`bluerov2_bringup/launch/record.launch.py` records the sensor topics into a rosbag
+(MCAP). Run it in a second shell while the drivers are up; stop it with Ctrl-C, which
+closes the bag cleanly.
+
+```bash
+ros2 launch bluerov2_bringup record.launch.py                        # everything (default)
+ros2 launch bluerov2_bringup record.launch.py camera:=false          # IMU + DVL only
+ros2 launch bluerov2_bringup record.launch.py camera_raw:=false      # camera as JPEG only
+ros2 launch bluerov2_bringup record.launch.py bag_name:=dive1 max_bag_duration:=120
+```
+
+| Argument | Default | Records |
+|---|---|---|
+| `imu` | true | `imu/data`, `imu/data_raw`, `imu/mag`, `imu/pressure`, `imu/temperature` |
+| `dvl` | true | `dvl/velocity`, `dvl/report`, `dvl/altitude`, `dvl/dead_reckoning`, `dvl/dead_reckoning_odometry` |
+| `camera` | true | `camera/camera_info`, plus the two below |
+| `camera_raw` | true | `camera/image_raw` |
+| `camera_compressed` | true | `camera/image_raw/compressed` (only exists when the drivers run with Foxglove or `compressed_video:=true`) |
+| `tf` | true | `/tf`, `/tf_static` |
+| `logs` | true | `/rosout` |
+| `output_dir` | `/home/rosdev/data` | parent folder; this is `rov4_vslam/data` on the host |
+| `bag_name` | `rov_YYYYmmdd_HHMMSS` | one folder per recording |
+| `storage` | `mcap` | or `sqlite3` |
+| `max_bag_duration` | 60 | split into files of this many seconds; 0 = one file |
+
+- All sensors go into one bag on the same ROS clock. Nothing is resampled or dropped to
+  align them: every message keeps its own rate, its driver's `header.stamp`, and the
+  time it was recorded. Align sensors offline by `header.stamp`.
+- A topic nobody publishes is simply absent from the bag. In air `dvl/velocity` and
+  `dvl/altitude` record 0 messages; that is normal. Nothing publishes `/tf` yet.
+- **Disk.** Raw 1080p video is ~187 MB/s, about 11 GB per minute; JPEG is ~15 MB/s.
+  The free space is printed when recording starts.
+- Raw frames need step 2e above, or `image_raw` records at ~1–2 fps.
+- It uses rosbag2's C++ recorder rather than a Python node, which could not keep up
+  with raw video.
+
+---
+
+## 7. Code fixes this bring-up required
+
+Fixes 1–3 were blockers found during bring-up; none of the code had ever run against
+hardware. Fix 4 was found later the same day, while adding recording.
 
 1. **`Dockerfile`** — `COPY --chown` sets ownership on `ros2_ws/src`, but Docker creates
    the parent `ros2_ws` as `root:root`, so the unprivileged user cannot create
@@ -163,9 +219,33 @@ All three were blockers; none had ever run against hardware.
      `array.array('B', frame.tobytes())` — byte-identical, ~95x faster.
      Measured effect: **1.0 fps -> 32 fps**.
 
+4. **`rtps_udp_profile.xml`** — no socket buffer size was set, so every Fast DDS UDP
+   socket got the kernel default of ~208 KB. A raw 1080p frame (6.2 MB) goes out as a
+   burst of ~100 RTPS fragments; the receiving socket overflowed, and because the camera
+   topic is `BEST_EFFORT`, a frame missing one fragment is dropped whole. Every process
+   other than the camera node (Python subscribers and the C++ `ros2 bag record` alike)
+   saw `image_raw` at 1–3 fps, while the small `camera_info` from the same callback
+   arrived at 32 Hz. Fixed with `<receiveBufferSize>33554432</receiveBufferSize>` in the
+   profile, **together with** raising `net.core.rmem_max` on the host (step 2e) — the
+   kernel silently caps the request at that limit. Measured, 6 s of `ros2 bag record`
+   on `image_raw` + `camera_info`, with the `RcvbufErrors` counter from `/proc/net/snmp`:
+
+   | Setup | `image_raw` frames | UDP RcvbufErrors |
+   |---|---|---|
+   | before | 5 (vs 184 `camera_info`) | 2,156 |
+   | `rmem_max` raised only | 11 (vs 184) | 2,116 |
+   | `rmem_max` + profile, image rebuilt | **187 of 187** | **0** |
+
+   `record.launch.py` with all defaults for 9.7 s: `image_raw`, `image_raw/compressed`
+   and `camera_info` all 310 messages, 0 RcvbufErrors. To confirm the profile is live,
+   the recorder's sockets show `rb67108864` in `ss -uamp` (Linux doubles the request).
+   This also explains why enabling shared memory earlier changed nothing: Fast DDS only
+   uses it when publisher *and* subscriber both enable it, and the camera node was
+   still on the UDP-only profile.
+
 ---
 
-## 7. Open items
+## 8. Open items
 
 - `camera_info.yaml` is a placeholder; `k[0] = 0`. Needs calibration **in water**.
 - `extrinsics.yaml` values are placeholders; `static_tf_node` warns about them at
@@ -179,7 +259,3 @@ All three were blockers; none had ever run against hardware.
 - DVL dead reckoning reports positions of hundreds of km with std of ~8e6 m. Expected
   with no bottom lock ever acquired, but must be re-checked in water before any SLAM
   work consumes that topic.
-- A Python subscriber reads `/camera/image_raw` at only ~3 fps while the node publishes
-  at 32 fps (its own counter, and `camera_info` from the same callback measures 32 Hz).
-  Not diagnosed. Enabling shared memory did not change it. Matters only if a consumer
-  needs raw 1080p frames from a *separate* process.
