@@ -57,9 +57,11 @@
 
 /**/dvl_node:
   ros__parameters:
-    # TODO(network): confirm in the DVL's own web UI. 192.168.2.95 is what Water Linked
+    # Measured 2026-09-15 on this vehicle: DVL answers at 192.168.2.128 (factory default .95
+    # was not in use). Confirmed: TCP 16171 open, json_v3.1 stream.
+    # Original note: confirm in the DVL own web UI. 192.168.2.95 is what Water Linked
     # ships for the BlueROV2 integration.
-    host: "192.168.2.95"
+    host: "192.168.2.128"
     port: 16171
 
     frame_id: "dvl_link"

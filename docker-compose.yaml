@@ -34,7 +34,7 @@ services:
       # interface board. Check with: ping $ROV_IP
       # ---------------------------------------------------------------------------
       - ROV_IP=192.168.2.2          # BlueOS / Raspberry Pi on the ROV
-      - DVL_IP=192.168.2.95         # Water Linked DVL-A50
+      - DVL_IP=192.168.2.128         # Water Linked DVL-A50
       - MAVLINK_PORT=14550          # UDP, MAVLink from BlueOS to topside
       - DVL_PORT=16171              # TCP, Water Linked JSON protocol
       - CAMERA_UDP_PORT=5600        # UDP, H.264 RTP from BlueOS
