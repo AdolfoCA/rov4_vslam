@@ -100,6 +100,12 @@ COPY rtps_udp_profile.xml /usr/local/share/middleware_profiles/
 # --- Workspace -----------------------------------------------------------------------
 COPY --chown=$UID:$GID ros2_ws/src /home/$USERNAME/ros2_ws/src
 
+# `COPY --chown` sets ownership on ros2_ws/src only. The implicit parent directory
+# /home/$USERNAME/ros2_ws is created by Docker as root:root, so the unprivileged user
+# below cannot create build/, install/ or log/ in it and `colcon build` dies with
+# `PermissionError: [Errno 13] Permission denied: 'log'`. Fix the parent while root.
+RUN chown $UID:$GID /home/$USERNAME/ros2_ws
+
 USER $USERNAME
 WORKDIR /home/$USERNAME/ros2_ws
 
