@@ -123,6 +123,18 @@ python3 ~/data/verify_all.py      # one row per topic: message count + a sample 
 python3 ~/data/grab_ros_frame.py  # saves a frame from /camera/image_raw to data/
 ```
 
+> The two scripts above are local scratch helpers written during the bring-up. They
+> live in `data/`, which this repo gitignores, so they are **not** part of the
+> checkout — they are mentioned only to record how the numbers below were obtained.
+> The equivalent with stock tooling:
+>
+> ```bash
+> ros2 topic list
+> ros2 topic hz   /bluerov2/imu/data_raw
+> ros2 topic echo /bluerov2/imu/data_raw --field linear_acceleration --once
+> ros2 run rqt_image_view rqt_image_view      # X11 is already wired up in compose
+> ```
+
 ---
 
 ## 6. Code fixes this bring-up required

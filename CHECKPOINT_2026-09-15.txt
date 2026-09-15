@@ -227,9 +227,13 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
        bluerov2_imu/imu_node.py                    BUG 2 fix (_clock -> _clock_sync)
        bluerov2_camera/camera_node.py              BUG 3a + 3b fixes
        TOPSIDE_SETUP.md                    (new)   per-laptop setup, for the README
-       data/verify_all.py                  (new)   prints every topic + a sample value
-       data/grab_ros_frame.py              (new)   saves a frame off the image topic
-       data/check_imu.py                   (new)   averages IMU signals over a window
+
+     Three scratch helpers were also written -- data/verify_all.py,
+     data/grab_ros_frame.py, data/check_imu.py. They are NOT committed: data/
+     is gitignored by this repo on purpose. They are recorded here only so the
+     numbers in section 4 can be traced to how they were produced. Everything
+     they do is reproducible with stock tooling (ros2 topic list / hz / echo,
+     rqt_image_view).
 
 ================================================================================
 6. WHAT IS STILL MISSING
@@ -322,8 +326,11 @@ BUG 3b -- camera_node.py: 1 fps instead of 30.
   docker compose exec bluerov2 bash
   # inside:
   ros2 launch bluerov2_bringup bluerov2.launch.py
-  # in a second shell:
-  docker compose exec bluerov2 bash -lc 'python3 ~/data/verify_all.py'
+  # in a second shell, with stock tooling:
+  docker compose exec bluerov2 bash -lc 'ros2 topic list'
+  docker compose exec bluerov2 bash -lc 'ros2 topic hz /bluerov2/imu/data_raw'
+  docker compose exec bluerov2 bash -lc \
+    'ros2 topic echo /bluerov2/imu/data_raw --field linear_acceleration --once'
 
   Only ONE process may bind UDP 5600 and 14550. Stop any gst-launch or second
   launch first. Stale nodes cause identical symptoms;
