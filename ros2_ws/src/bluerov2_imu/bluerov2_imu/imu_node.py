@@ -140,7 +140,10 @@ class BlueRov2ImuNode(Node):
         )
 
         # --- State --------------------------------------------------------------------
-        self._clock = ClockOffsetEstimator(float(p("clock_window_seconds").value))
+        # NB: must NOT be called self._clock -- rclpy.node.Node uses that attribute for
+        # its own Clock, and create_timer() then fails with
+        #   AttributeError: 'ClockOffsetEstimator' object has no attribute 'handle'
+        self._clock_sync = ClockOffsetEstimator(float(p("clock_window_seconds").value))
         self._conn = None
         self._conn_lock = threading.Lock()
         self._stop = threading.Event()
@@ -180,7 +183,7 @@ class BlueRov2ImuNode(Node):
                         except Exception:  # noqa: BLE001
                             pass
                         self._conn = None
-                self._clock.reset()
+                self._clock_sync.reset()
             if not self._stop.is_set():
                 self.get_logger().info(f"Reconnecting in {reconnect_period:.1f} s")
                 self._stop.wait(reconnect_period)
@@ -449,7 +452,7 @@ class BlueRov2ImuNode(Node):
         now_ns = self.get_clock().now().nanoseconds
         if not self._use_mavlink_time:
             return now_ns
-        return self._clock.update(vehicle_time_ns, now_ns)
+        return self._clock_sync.update(vehicle_time_ns, now_ns)
 
     def _to_ros_stamp(self, nanoseconds: int):
         return rclpy.time.Time(nanoseconds=nanoseconds).to_msg()
@@ -478,7 +481,7 @@ class BlueRov2ImuNode(Node):
             )
             return
         rates = ", ".join(f"{name} {count / 5.0:.0f} Hz" for name, count in sorted(counters.items()))
-        offset = self._clock.offset_ns
+        offset = self._clock_sync.offset_ns
         offset_text = f", clock offset {offset / 1e9:+.3f} s" if offset is not None else ""
         self.get_logger().info(f"{rates}{offset_text}")
 
