@@ -1,0 +1,15 @@
+# Login of the multi-camera computer (NVIDIA), used by `multicam shutdown` and
+# session_stop.launch.py to power it off over SSH.
+#
+# This is a TEMPLATE. Copy it to rov4_vslam/data/.multicam_ssh and put the real password
+# in the copy (it is in the lab's "Multi camera user guide", section "Getting the videos"):
+#
+#   cp ros2_ws/src/bluerov2_bringup/config/multicam_ssh.example data/.multicam_ssh
+#   chmod 600 data/.multicam_ssh
+#   nano data/.multicam_ssh
+#
+# data/ is git-ignored, so the real password is never committed. Never put it in this
+# template: the repository is public.
+host=10.42.0.5
+user=nvidia
+password=CHANGE_ME

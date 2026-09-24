@@ -11,6 +11,8 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/check_streams.py
+  scripts/multicam.py
+  scripts/preflight.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

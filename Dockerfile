@@ -31,6 +31,10 @@ RUN apt-get update -q \
     iproute2 \
     net-tools \
     netcat-openbsd \
+    # SSH to the multi-camera computer: `multicam shutdown` powers it off with a
+    # password login (sshpass), the password read from data/.multicam_ssh.
+    openssh-client \
+    sshpass \
     tcpdump \
     socat \
     tmux \
@@ -49,6 +53,9 @@ RUN apt-get update -q \
     ros-humble-image-transport-plugins \
     ros-humble-camera-calibration \
     ros-humble-rmw-fastrtps-cpp \
+    # CycloneDDS: only used by `multicam` to call the multi-camera system's services,
+    # which run on CycloneDDS and do not answer calls from Fast DDS.
+    ros-humble-rmw-cyclonedds-cpp \
     ros-humble-rosidl-default-generators \
     ros-humble-message-filters \
     # recording and visualisation
@@ -135,6 +142,7 @@ RUN printf '%s\n' \
     "alias build_ws='cd /home/$USERNAME/ros2_ws && colcon build --symlink-install && source install/setup.bash'" \
     "alias start_mission='bash /home/$USERNAME/ros2_ws/src/start_mission.sh'" \
     "alias stop_mission='tmux kill-session -t mission 2>/dev/null && echo Mission stopped.'" \
+    "alias multicam='ros2 run bluerov2_bringup multicam.py'" \
     >> /home/$USERNAME/.bashrc
 
 CMD ["bash"]
