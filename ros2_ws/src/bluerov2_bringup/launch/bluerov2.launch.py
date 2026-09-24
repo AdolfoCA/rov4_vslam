@@ -18,6 +18,17 @@ Launch arguments (all optional):
     dvl_ip:=192.168.2.95     convenience override, see below
     log_level:=info          rcl logging level
 
+    Multi-camera system (Blue Atlas, 4 cameras, H.265 streams to 192.168.1.1):
+    aux_left:=true           camera node for Aux Left       (UDP 5700)
+    aux_right:=true          camera node for Aux Right      (UDP 5701)
+    stereo_bottom:=false     camera node for Stereo Bottom  (UDP 5702)
+    bottom_most:=false       camera node for Bottom Most    (UDP 5703)
+
+Multi-camera topics: <namespace>/multicam/<camera>/image_raw, .../image_raw/compressed
+and .../camera_info. Ports, codec and frame ids are in config/bluerov2.yaml. These nodes
+only receive the streams: the camera system has to be streaming already (it is started
+on the camera system with its new_attach_streaming_consumer service).
+
 Video over Foxglove
 -------------------
 ``compressed_video`` defaults to ``auto``, which turns JPEG republishing on exactly
@@ -52,6 +63,15 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+# Multi-camera system cameras, with whether each one's node starts by default. The top
+# pair is the one currently used for datasets.
+MULTICAM_CAMERAS = {
+    "aux_left": "true",
+    "aux_right": "true",
+    "stereo_bottom": "false",
+    "bottom_most": "false",
+}
 
 
 def _driver_nodes(context, *_args, **_kwargs):
@@ -117,6 +137,28 @@ def _driver_nodes(context, *_args, **_kwargs):
             respawn=True,
             respawn_delay=2.0,
         ),
+    ] + [
+        # Multi-camera system: the same camera driver, one node per camera, with codec
+        # and port from the params file. The node publishes camera/image_raw etc.; the
+        # remappings give each camera its own topics under multicam/<camera>/.
+        Node(
+            package="bluerov2_camera",
+            executable="camera_node",
+            name=camera,
+            namespace="multicam",
+            output="screen",
+            parameters=[params_file],
+            arguments=common,
+            remappings=[
+                ("camera/image_raw", f"{camera}/image_raw"),
+                ("camera/image_raw/compressed", f"{camera}/image_raw/compressed"),
+                ("camera/camera_info", f"{camera}/camera_info"),
+            ],
+            condition=IfCondition(LaunchConfiguration(camera)),
+            respawn=True,
+            respawn_delay=2.0,
+        )
+        for camera in MULTICAM_CAMERAS
     ]
 
 
@@ -141,6 +183,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("rov_ip", default_value=""),
         DeclareLaunchArgument("dvl_ip", default_value=""),
         DeclareLaunchArgument("log_level", default_value="info"),
+    ] + [
+        DeclareLaunchArgument(camera, default_value=default)
+        for camera, default in MULTICAM_CAMERAS.items()
     ]
 
     static_tf = Node(

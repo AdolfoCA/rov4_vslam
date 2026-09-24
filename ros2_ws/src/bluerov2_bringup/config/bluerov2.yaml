@@ -124,3 +124,76 @@
 
     watchdog_period_s: 5.0
     restart_after_silence_s: 10.0
+
+# Blue Atlas multi-camera system (separate NVIDIA unit on the ROV). It sends one H.265
+# RTP stream per camera to 192.168.1.1, so the topside tether adapter must own that
+# address. The streams are started on the camera system itself (its
+# /ba/camera_feed_manager/new_attach_streaming_consumer service); these nodes only
+# receive them. Measured 2026-09-24: 960x540, 30 fps per camera (the stream header
+# claims 25 fps; the frames actually arrive at 30).
+#
+# The nodes are named after the cameras and run in the 'multicam' namespace, so the
+# topics are <namespace>/multicam/<camera>/image_raw, .../image_raw/compressed and
+# .../camera_info. Which cameras run is chosen in bluerov2.launch.py.
+#
+# Frames are stamped on arrival in the ROS clock, like the main camera. The four
+# streams are NOT synchronised with each other by the camera system.
+/**/aux_left:
+  ros__parameters:
+    codec: "h265"
+    udp_port: 5700
+    jitter_buffer_ms: 50
+    pipeline_override: ""
+    frame_id: "multicam_aux_left_optical"
+    camera_name: "multicam_aux_left"
+    camera_info_url: ""
+    publish_compressed: true
+    jpeg_quality: 90
+    timestamp_offset_s: 0.0
+    watchdog_period_s: 5.0
+    restart_after_silence_s: 10.0
+
+/**/aux_right:
+  ros__parameters:
+    codec: "h265"
+    udp_port: 5701
+    jitter_buffer_ms: 50
+    pipeline_override: ""
+    frame_id: "multicam_aux_right_optical"
+    camera_name: "multicam_aux_right"
+    camera_info_url: ""
+    publish_compressed: true
+    jpeg_quality: 90
+    timestamp_offset_s: 0.0
+    watchdog_period_s: 5.0
+    restart_after_silence_s: 10.0
+
+/**/stereo_bottom:
+  ros__parameters:
+    codec: "h265"
+    udp_port: 5702
+    jitter_buffer_ms: 50
+    pipeline_override: ""
+    frame_id: "multicam_stereo_bottom_optical"
+    camera_name: "multicam_stereo_bottom"
+    camera_info_url: ""
+    publish_compressed: true
+    jpeg_quality: 90
+    timestamp_offset_s: 0.0
+    watchdog_period_s: 5.0
+    restart_after_silence_s: 10.0
+
+/**/bottom_most:
+  ros__parameters:
+    codec: "h265"
+    udp_port: 5703
+    jitter_buffer_ms: 50
+    pipeline_override: ""
+    frame_id: "multicam_bottom_most_optical"
+    camera_name: "multicam_bottom_most"
+    camera_info_url: ""
+    publish_compressed: true
+    jpeg_quality: 90
+    timestamp_offset_s: 0.0
+    watchdog_period_s: 5.0
+    restart_after_silence_s: 10.0
