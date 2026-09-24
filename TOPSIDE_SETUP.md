@@ -1,21 +1,24 @@
 # Topside setup — what every laptop needs
 
-Notes from the first hardware bring-up, 2026-09-15. To be folded into README.md later.
+Notes from the hardware bring-up: first bring-up 2026-09-15, multi-camera system added
+2026-09-24. The day-to-day usage (bring-up, recording) is also in README.md.
 
-Vehicle: BlueROV2 Heavy. Topside: Ubuntu 20.04, Docker 26.1.3.
+Vehicle: BlueROV2 Heavy + Blue Atlas multi-camera system. Topside: Ubuntu 20.04,
+Docker 26.1.3.
 
 ---
 
 ## 1. Why any setup is needed at all
 
-The three sensors reach topside in three different ways, and only one of them is
+The sensors reach topside in different ways, and only one of them is
 zero-configuration:
 
 | Sensor | Direction | Needs topside config? |
 |---|---|---|
 | DVL-A50 | container dials **out**, TCP 16171 | no — works from any address |
 | IMU (MAVLink) | BlueOS **pushes** to `192.168.2.1:14550` | **yes** |
-| Camera (H.264 RTP) | BlueOS **pushes** to `192.168.2.1:5600` | **yes** |
+| Nose camera (H.264 RTP) | BlueOS **pushes** to `192.168.2.1:5600` | **yes** |
+| Multi-camera system (H.265 RTP, 4 cameras) | the camera computer **pushes** to `192.168.1.1:5700-5703` | **yes** |
 
 Because BlueOS pushes MAVLink and video at the fixed address `192.168.2.1`, the topside
 machine must actually hold that address or those two sensors receive nothing. Confirmed
@@ -33,6 +36,9 @@ Switching the IMU to dial out instead (`ros2 launch ... rov_ip:=192.168.2.2`, wh
 selects `udpout:192.168.2.2:14550`) was tested and does **not** get a heartbeat, so the
 static address is currently required.
 
+The same applies to the multi-camera system: its streams go to `192.168.1.1`, and its
+computer (`10.42.0.5` / `192.168.1.4`) uses `10.42.0.1` as its gateway. See 2b.
+
 ---
 
 ## 2. Per-laptop setup — run once
@@ -44,26 +50,52 @@ Find the interface name:
 ip -br addr        # the tether NIC shows up as enxXXXXXXXXXXXX
 ```
 
-**b. Give it 192.168.2.1, permanently.** DHCP from BlueOS assigns something in the
-`.100+` range, which is *not* where BlueOS pushes. Add `.1` alongside it.
+The Fathom-X topside box is **powered by its USB cable**: keep the USB cable plugged
+into the laptop even when the network goes through its Ethernet port. Unplugging the
+USB drops the whole tether link.
+
+**b. Give the tether adapter its three fixed addresses, permanently, and no gateway.**
+
+| Address | Why |
+|---|---|
+| `192.168.2.1/24` | BlueOS sends MAVLink (IMU) and the nose-camera video here |
+| `192.168.1.1/24` | the multi-camera system sends its 4 video streams here |
+| `10.42.0.1/24` | the multi-camera computer's network; it uses `10.42.0.1` as its gateway, and replies from it get stuck if nobody owns that address |
 
 ```bash
 nmcli -t -f NAME,DEVICE con show --active | grep <your-enx-interface>
-sudo nmcli con mod "Wired connection 3" +ipv4.addresses 192.168.2.1/24
-sudo nmcli con up  "Wired connection 3"
+sudo nmcli connection modify "Wired connection 3" \
+  ipv4.method manual \
+  ipv4.addresses "192.168.2.1/24,192.168.1.1/24,10.42.0.1/24" \
+  ipv4.gateway ""
+sudo nmcli connection up "Wired connection 3"
 ```
 
 Substitute the profile name from the first command. Use `nmcli`, not
-`sudo ip addr add 192.168.2.1/24 dev <iface>` — the `ip` form is lost on the next
-reboot, replug or DHCP renew. This was observed mid-session: the address silently
-disappeared and both IMU and camera went dead while the DVL kept working.
+`sudo ip addr add ... dev <iface>` — the `ip` form is lost on the next reboot, replug or
+DHCP renew. This was observed mid-session: the address silently disappeared and both
+IMU and camera went dead while the DVL kept working. `nmcli connection modify` only
+saves the profile; it takes effect after `nmcli connection up` (or a replug).
 
-Verify — both addresses should be listed:
+Verify:
 
 ```bash
 $ ip -br addr show <iface>
-enx606d3cf5a945  UP  192.168.2.135/24 192.168.2.1/24 ...
+enx606d3cf5a945  UP  192.168.2.1/24 192.168.1.1/24 10.42.0.1/24 ...
+$ ip route | grep default          # must still be via Wi-Fi, NOT via the tether
 ```
+
+Pitfalls met on 2026-09-22/24:
+- **No gateway on the tether profile.** A gateway there becomes the preferred route
+  (metric 100 vs 600 for Wi-Fi) and sends all internet traffic into the ROV.
+- **`/24`, never `/8`.** `10.42.0.x/8` claims all of `10.0.0.0/8`, which includes the
+  university Wi-Fi network (`10.59.x`, `10.208.x`).
+- **Do not copy another laptop's addresses.** `10.42.0.156` was a colleague's *laptop*
+  address, not the camera's; pinging it from his laptop was pinging himself.
+- **One laptop at a time** on the tether with `192.168.1.1` / `10.42.0.1`.
+- **`10.42.x.x` also exists on the university network.** Without the tether addresses,
+  a ping to `10.42.0.5` goes out over Wi-Fi and gets answers from other machines
+  (`ttl=55`). A device really on the tether answers with **`ttl=64`**.
 
 **c. Docker Compose v2.** Ubuntu's `docker.io` package does not ship it. No sudo needed:
 
@@ -105,6 +137,10 @@ for i in $(seq 1 254); do (ping -c1 -W1 192.168.2.$i >/dev/null 2>&1 && echo "19
 curl -s http://<candidate>/        # the DVL answers with "Water Linked DVL GUI"
 ```
 
+**Multi-camera computer.** MAC `48:b0:2d:3a:88:8d` (NVIDIA), addresses `10.42.0.5` and
+`192.168.1.4`. Streams: `aux_left` 5700, `aux_right` 5701, `stereo_bottom` 5702,
+`bottom_most` 5703 — in `config/bluerov2.yaml`.
+
 ---
 
 ## 4. Bring-up
@@ -118,10 +154,13 @@ docker compose exec bluerov2 bash
 ros2 launch bluerov2_bringup bluerov2.launch.py
 ```
 
-**Only one process may bind UDP 5600 and 14550.** If you ran `gst-launch` or a second
-launch to test the video, stop it first or the node gets nothing and looks broken.
-Stale nodes from an earlier launch cause the same symptom; `docker compose restart
-bluerov2` clears them.
+This starts IMU, DVL, nose camera and the multi-camera top pair (`aux_left`,
+`aux_right`). Add the bottom pair with `stereo_bottom:=true bottom_most:=true`.
+
+**Only one process may bind UDP 5600, 5700-5703 and 14550.** If you ran `gst-launch` or
+a second launch to test the video, stop it first or the node gets nothing and looks
+broken. Stale nodes from an earlier launch cause the same symptom; `docker compose
+restart bluerov2` clears them.
 
 ---
 
@@ -129,66 +168,81 @@ bluerov2` clears them.
 
 ```bash
 # raw bytes arrive at the laptop, before ROS is involved
-sudo timeout 5 tcpdump -i any -n udp port 14550     # MAVLink
-sudo timeout 5 tcpdump -i any -n udp port 5600      # video
-timeout 5 nc 192.168.2.128 16171                    # DVL JSON
+sudo timeout 5 tcpdump -i any -n udp port 14550            # MAVLink
+sudo timeout 5 tcpdump -i any -n udp port 5600             # nose camera video
+sudo timeout 5 tcpdump -i any -n udp portrange 5700-5703   # multi-camera video
+timeout 5 nc 192.168.2.128 16171                           # DVL JSON
+ping -c3 10.42.0.5                                         # multi-camera computer, ttl=64
 
-# then, inside the container
-python3 ~/data/verify_all.py      # one row per topic: message count + a sample value
-python3 ~/data/grab_ros_frame.py  # saves a frame from /camera/image_raw to data/
+# then, inside the container: all selected sensors, with their rates
+ros2 launch bluerov2_bringup record.launch.py check_only:=true
 ```
 
-> The two scripts above are local scratch helpers written during the bring-up. They
-> live in `data/`, which this repo gitignores, so they are **not** part of the
-> checkout — they are mentioned only to record how the numbers below were obtained.
-> The equivalent with stock tooling:
->
-> ```bash
-> ros2 topic list
-> ros2 topic hz   /bluerov2/imu/data_raw
-> ros2 topic echo /bluerov2/imu/data_raw --field linear_acceleration --once
-> ros2 run rqt_image_view rqt_image_view      # X11 is already wired up in compose
-> ```
+Stock tooling for single topics:
+
+```bash
+ros2 topic list
+ros2 topic hz   /bluerov2/imu/data_raw
+ros2 topic echo /bluerov2/imu/data_raw --field linear_acceleration --once
+ros2 run rqt_image_view rqt_image_view      # X11 is already wired up in compose
+```
 
 ---
 
-## 6. Recording
+## 6. Recording and the multi-camera system
 
-`bluerov2_bringup/launch/record.launch.py` records the sensor topics into a rosbag
-(MCAP). Run it in a second shell while the drivers are up; stop it with Ctrl-C, which
-closes the bag cleanly.
+### 6.1 Recording
+
+`bluerov2_bringup/launch/record.launch.py` records the selected sensors into a rosbag
+(MCAP), after checking that each of them is publishing. Run it in a second shell while
+the drivers are up; stop it with Ctrl-C, which closes the bag cleanly.
 
 ```bash
-ros2 launch bluerov2_bringup record.launch.py                        # everything (default)
-ros2 launch bluerov2_bringup record.launch.py camera:=false          # IMU + DVL only
-ros2 launch bluerov2_bringup record.launch.py camera_raw:=false      # camera as JPEG only
-ros2 launch bluerov2_bringup record.launch.py bag_name:=dive1 max_bag_duration:=120
+ros2 launch bluerov2_bringup record.launch.py check_only:=true     # is everything on?
+ros2 launch bluerov2_bringup record.launch.py bag_name:=dive01     # check, then record
+ros2 launch bluerov2_bringup record.launch.py camera:=true         # + nose camera
+ros2 launch bluerov2_bringup record.launch.py stereo_bottom:=true bottom_most:=true
 ```
 
-| Argument | Default | Records |
-|---|---|---|
-| `imu` | true | `imu/data`, `imu/data_raw`, `imu/mag`, `imu/pressure`, `imu/temperature` |
-| `dvl` | true | `dvl/velocity`, `dvl/report`, `dvl/altitude`, `dvl/dead_reckoning`, `dvl/dead_reckoning_odometry` |
-| `camera` | true | `camera/camera_info`, plus the two below |
-| `camera_raw` | true | `camera/image_raw` |
-| `camera_compressed` | true | `camera/image_raw/compressed` (only exists when the drivers run with Foxglove or `compressed_video:=true`) |
-| `tf` | true | `/tf`, `/tf_static` |
-| `logs` | true | `/rosout` |
-| `output_dir` | `/home/rosdev/data` | parent folder; this is `rov4_vslam/data` on the host |
-| `bag_name` | `rov_YYYYmmdd_HHMMSS` | one folder per recording |
-| `storage` | `mcap` | or `sqlite3` |
-| `max_bag_duration` | 60 | split into files of this many seconds; 0 = one file |
+**Defaults: IMU, DVL, `aux_left`, `aux_right` on; nose camera, `stereo_bottom`,
+`bottom_most` off.** Multi-camera frames are recorded as JPEG (`multicam_compressed`);
+add `multicam_raw:=true` for uncompressed 960×540 frames. The full argument table is in
+README.md, section 3.
+
+The stream check waits up to `check_timeout` (10 s) for each selected sensor and
+measures its rate (IMU ≥ 50 Hz, DVL ≥ 1 Hz, cameras ≥ 10 Hz). If one is missing or too
+slow, it prints `STREAM CHECK FAILED: <sensor>` and **no recording is started**.
 
 - All sensors go into one bag on the same ROS clock. Nothing is resampled or dropped to
   align them: every message keeps its own rate, its driver's `header.stamp`, and the
   time it was recorded. Align sensors offline by `header.stamp`.
 - A topic nobody publishes is simply absent from the bag. In air `dvl/velocity` and
   `dvl/altitude` record 0 messages; that is normal. Nothing publishes `/tf` yet.
-- **Disk.** Raw 1080p video is ~187 MB/s, about 11 GB per minute; JPEG is ~15 MB/s.
+- **Disk.** Raw nose-camera video is ~187 MB/s, about 11 GB per minute; JPEG is ~15 MB/s.
   The free space is printed when recording starts.
 - Raw frames need step 2e above, or `image_raw` records at ~1–2 fps.
 - It uses rosbag2's C++ recorder rather than a Python node, which could not keep up
   with raw video.
+
+### 6.2 Multi-camera system
+
+- A separate NVIDIA computer on the ROV network, with its own battery, running ROS 2
+  nodes under `/ba/...` on **CycloneDDS** (`camera_feed_manager`, `light_controller`,
+  `leak_detector`, `battery_monitor`, `log_dir_manager`). Its message definitions are
+  in `ros2_ws/src/ba_msgs`.
+- It sends one H.265 stream per camera to `192.168.1.1`, **960×540 at 30 fps** (the
+  stream header says 25). The drivers here only receive them: one `camera_node` per
+  camera with `codec: h265`, topics `/bluerov2/multicam/<camera>/...`.
+- The streams are started on the camera system itself, with
+  `/ba/camera_feed_manager/new_attach_streaming_consumer` (one call per camera: device,
+  `ip_address: '192.168.1.1'`, port). On 2026-09-24 they were already running.
+- Its **topics are visible** from our Fast DDS container, but its **services do not
+  answer** calls from Fast DDS (checked: request sent, no reply). Calling them from here
+  needs `ros-humble-rmw-cyclonedds-cpp` in the image and
+  `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` for the call.
+- The camera system's own recording (`start_recording`) is synchronised and stays on
+  the NVIDIA (`/storage/logs/<date>/mission_*`); the streams we record are not
+  synchronised with each other.
 
 ---
 
@@ -243,11 +297,25 @@ hardware. Fix 4 was found later the same day, while adding recording.
    uses it when publisher *and* subscriber both enable it, and the camera node was
    still on the UDP-only profile.
 
+Multi-camera additions (2026-09-24), not fixes: `camera_node` gained a `codec`
+parameter (`h264` / `h265`); `bluerov2.launch.py` starts one node per multi-camera;
+`record.launch.py` gained per-sensor switches and the stream check
+(`scripts/check_streams.py`); `ba_msgs` was added to the workspace, which pulls in
+`ros-humble-mavros-msgs` through rosdep at image build.
+
 ---
 
 ## 8. Open items
 
-- `camera_info.yaml` is a placeholder; `k[0] = 0`. Needs calibration **in water**.
+- **Multi-camera streams after a restart:** check whether the camera system resumes
+  streaming by itself after a power cycle. If not, starting the streams from this
+  container needs CycloneDDS (see 6.2).
+- **Multi-camera TF:** the four camera frames are not in the TF tree; measure their
+  mounting.
+- **Multi-camera lights:** `/ba/light_controller/set_brightness` exists but, like all
+  `/ba` services, is not callable from Fast DDS.
+- `camera_info.yaml` is a placeholder; `k[0] = 0`. Needs calibration **in water**, for
+  the nose camera and for the multi-camera pair.
 - `extrinsics.yaml` values are placeholders; `static_tf_node` warns about them at
   startup. Measure before any navigation work.
 - Accelerometer magnitude reads |a| = 10.26 m/s^2 at rest, 4.5% above 9.81. Scaling
