@@ -71,13 +71,15 @@ except ImportError:  # pragma: no cover - only needed for JPEG republishing
     cv2 = None
 
 
+# {codec} is "h264" (BlueOS / BlueROV2 camera) or "h265" (the Blue Atlas multi-camera
+# system); the depayloader, parser and decoder are all named after it.
 DEFAULT_PIPELINE = (
     "udpsrc port={port} "
-    'caps="application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000" '
+    'caps="application/x-rtp,media=video,encoding-name={encoding},payload=96,clock-rate=90000" '
     "! rtpjitterbuffer latency={latency_ms} drop-on-latency=true "
-    "! rtph264depay "
-    "! h264parse "
-    "! avdec_h264 output-corrupt=false "
+    "! rtp{codec}depay "
+    "! {codec}parse "
+    "! avdec_{codec} output-corrupt=false "
     "! videoconvert "
     "! video/x-raw,format=BGR "
     "! appsink name=ros_sink emit-signals=true sync=false max-buffers=2 drop=true"
@@ -96,6 +98,8 @@ class BlueRov2CameraNode(Node):
         # BlueOS video page, set the matching port here.
         self.declare_parameter("udp_port", 5600)
         self.declare_parameter("jitter_buffer_ms", 50)
+        # "h264" for the BlueROV2 camera via BlueOS, "h265" for the multi-camera system.
+        self.declare_parameter("codec", "h264")
 
         # Set this to override the whole pipeline, for example to pull RTSP instead:
         #   rtspsrc location=rtsp://192.168.2.2:8554/video latency=100 ! rtph264depay
@@ -185,9 +189,14 @@ class BlueRov2CameraNode(Node):
         override = str(self.get_parameter("pipeline_override").value).strip()
         if override:
             return override
+        codec = str(self.get_parameter("codec").value).strip().lower()
+        if codec not in ("h264", "h265"):
+            raise RuntimeError(f"Unsupported codec '{codec}': use 'h264' or 'h265'")
         return DEFAULT_PIPELINE.format(
             port=int(self.get_parameter("udp_port").value),
             latency_ms=int(self.get_parameter("jitter_buffer_ms").value),
+            codec=codec,
+            encoding=codec.upper(),
         )
 
     def _start_pipeline(self) -> None:
