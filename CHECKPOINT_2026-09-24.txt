@@ -118,12 +118,73 @@ Connecting to the camera system took several days; the causes are in section 3.
 
 7. OPEN TASKS
 --------------------------------------------------------------------------------
-  7.1  After a camera-system power cycle, check whether the streams resume by
-       themselves. If not: add ros-humble-rmw-cyclonedds-cpp to the image and call
-       new_attach_streaming_consumer with RMW_IMPLEMENTATION=rmw_cyclonedds_cpp.
+  7.1  DONE (section 8): the streams do NOT resume after a camera-system power
+       cycle; `multicam start` (CycloneDDS) starts them.
   7.2  Multi-camera TF frames (mounting not measured).
   7.3  Calibration of the top pair, in water.
-  7.4  Multi-camera lights: set_brightness needs the same CycloneDDS path as 7.1.
+  7.4  DONE (section 8): lights work via `multicam lights`, after configure/activate.
   7.5  Camera timestamps are arrival times; the four streams are not synchronised
        with each other. Measure the latency offset if tight sync is needed.
+
+
+8. SESSION PIPELINE  (added later the same day)
+--------------------------------------------------------------------------------
+8.1  Why the /ba services did not answer
+     From our Fast DDS container the camera_status request reached the camera
+     system but no reply ever came back; its topics did arrive. The camera system
+     runs CycloneDDS. With ros-humble-rmw-cyclonedds-cpp in the image and the call
+     made on CycloneDDS bound to 192.168.1.1, every service answers.
+     (An earlier theory - replies routed to the Wi-Fi address via the missing
+     gateway 10.42.0.1 - was real but not sufficient: the laptop now owns 10.42.0.1
+     and Fast DDS calls still got no reply.)
+
+8.2  multicam command (scripts/multicam.py)
+     status / start / stop / lights / shutdown. Tested on the vehicle:
+       start aux_left aux_right   -> ~270 packets/s per camera, check 30.0 Hz each
+       stop                       -> 0 packets
+       lights 50                  -> lights on (seen); needed configure + activate,
+                                     the controller boots 'unconfigured' and then
+                                     answers done=True with the lights dark
+       stop all / shutdown        -> only cameras that are streaming (stopping an
+                                     idle camera is refused and looked like FAILED)
+     After a reboot of the camera computer: software up in ~2 min, nothing streams
+     until `multicam start` (watched for 4 min).
+
+8.3  QGroundControl on the same laptop (PC-only changes)
+     IMU driver moved to UDP 14551 (BlueOS "Multi-camera" endpoint = identical copy:
+     1107 vs 1111 packets in 5 s). Nose video: a relay in bluerov2.launch.py binds
+     192.168.2.1:5600 and copies each packet to 127.0.0.1:5600 (QGC) and :5602
+     (driver). Stand-in test: QGC-like listeners got 823 MAVLink packets / 3 s and
+     4103 video packets / 4 s while the drivers ran (IMU 101.8 Hz, nose 32.4 fps).
+     Confirmed with the real QGroundControl: vehicle connected, video shown.
+
+8.4  session_start.launch.py
+     preflight.py (Pi ping, ArduSub heartbeat on 14551, DVL ping + TCP, camera
+     computer ping + camera_status) -> drivers -> multicam start -> lights 50 % 5 s
+     -> stream check -> SESSION READY. Two cold starts:
+       1st: DVL on DHCP, came up at 192.168.2.128 only after 441 s -> READY ~7.5 min
+       2nd: DVL set static (below): DVL 0 s, Pi+IMU 69 s, camera computer 128 s,
+            SESSION READY 146 s. Stream check IMU 101.2, DVL 4.3, nose 32.3,
+            aux_left 30.3, aux_right 30.3 Hz.
+
+8.5  DVL fixed address
+     The DVL was on DHCP (saved /api/v1/ip: dhcp=true) and fell back to its factory
+     192.168.194.95 until BlueOS gave it .128. Set static in its web page
+     (Configuration -> Static, 192.168.2.128/24, gw/dns 192.168.2.2), power cycled:
+     now dhcp=false, .128 answers before BlueOS is up; 192.168.194.95 stays as backup.
+
+8.6  Camera computer network (read over SSH)
+     Already fixed: profile nm_conn_static (only autoconnect) = 192.168.1.4/24 +
+     10.42.0.5/24, gw 10.42.0.1. Other profiles off (custom_static with
+     192.168.2.5/24 + 10.42.0.5/8, two DHCP) - probably why addresses "changed" before.
+
+8.7  session_stop.launch.py
+     multicam shutdown: stop streaming cameras -> lights 0 on channels 1-3 ->
+     sshpass + ssh nvidia@10.42.0.5 "sudo -S poweroff" -> wait until it stops
+     answering + 10 s. Tested: 57 s, camera computer off (100 % loss), BlueOS on.
+     Login in data/.multicam_ssh (git-ignored, chmod 600), template in
+     bluerov2_bringup/config/multicam_ssh.example. The password is the one in the
+     lab's multi-camera user guide; it is NOT in the repository.
+
+8.8  Disk: 3.4 GB free after three image rebuilds - run `docker image prune`.
 ================================================================================
