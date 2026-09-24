@@ -6,7 +6,8 @@ Launch arguments (all optional):
 
     imu:=true|false          start the MAVLink IMU driver
     dvl:=true|false          start the Water Linked DVL driver
-    camera:=true|false       start the camera driver
+    camera:=true|false       start the nose camera driver, and the video relay that lets
+                             QGroundControl receive the same stream (see below)
     foxglove:=true|false     start foxglove_bridge (default true)
     foxglove_port:=8765      websocket port for Foxglove clients
     compressed_video:=auto   publish JPEG alongside raw video; see below
@@ -57,7 +58,7 @@ at startup about any transform still left at exact identity.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, GroupAction, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, PushRosNamespace
@@ -133,6 +134,26 @@ def _driver_nodes(context, *_args, **_kwargs):
             output="screen",
             parameters=[params_file, camera_overrides],
             arguments=common,
+            condition=IfCondition(LaunchConfiguration("camera")),
+            respawn=True,
+            respawn_delay=2.0,
+        ),
+    ] + [
+        # Nose-camera video relay. BlueOS sends the H.264 RTP stream once, to
+        # 192.168.2.1:5600, and a UDP port feeds only one program - but both
+        # QGroundControl and the camera node above want it. The relay binds the tether
+        # address specifically (192.168.2.1:5600, which Linux prefers over QGC's
+        # 0.0.0.0:5600) and copies each packet, without decoding, to 127.0.0.1:5600 for
+        # QGroundControl and to the camera node's port (5602, bluerov2.yaml).
+        ExecuteProcess(
+            cmd=[
+                "gst-launch-1.0", "-q",
+                "udpsrc", "address=192.168.2.1", "port=5600", "reuse=true",
+                "buffer-size=4194304",
+                "!", "multiudpsink", "clients=127.0.0.1:5600,127.0.0.1:5602", "sync=false",
+            ],
+            name="nose_video_relay",
+            output="screen",
             condition=IfCondition(LaunchConfiguration("camera")),
             respawn=True,
             respawn_delay=2.0,

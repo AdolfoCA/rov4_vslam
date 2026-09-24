@@ -12,7 +12,13 @@
     #   udpin:0.0.0.0:14550      listen for the stream BlueOS pushes to topside (default)
     #   udpout:192.168.2.2:14550 connect out to the ROV instead
     #   tcp:192.168.2.2:5760     direct TCP to a MAVLink server (also works for SITL)
-    connection_url: "udpin:0.0.0.0:14550"
+    #
+    # 14551, not 14550: QGroundControl listens on 14550 on the same laptop, and a UDP
+    # port can only feed one program. BlueOS already sends an identical copy of the
+    # MAVLink stream to 192.168.2.1:14551 (its "Multi-camera" endpoint; measured
+    # 2026-09-24: 1107 vs 1111 packets in 5 s), so this needs no change on the robot.
+    # Use 14550 again if QGroundControl is not used on this laptop.
+    connection_url: "udpin:0.0.0.0:14551"
     source_system: 255
     source_component: 190
     target_system: 1
@@ -93,7 +99,11 @@
 /**/camera_node:
   ros__parameters:
     # TODO(network): the BlueOS video page decides this. 5600 is the first stream.
-    udp_port: 5600
+    # 5602, not 5600: BlueOS sends the video to 192.168.2.1:5600 once, and
+    # QGroundControl listens on 5600 too. bluerov2.launch.py starts a relay (with this
+    # node) that receives 192.168.2.1:5600 and copies every packet to 127.0.0.1:5600
+    # (QGroundControl, unchanged) and 127.0.0.1:5602 (this node).
+    udp_port: 5602
     jitter_buffer_ms: 50
 
     # Leave empty to use the built-in UDP H.264 pipeline. To pull RTSP instead:
