@@ -1,0 +1,6 @@
+# Get exposure, 
+
+std_msgs/Empty request
+---
+bool succeeded
+int32 exposure

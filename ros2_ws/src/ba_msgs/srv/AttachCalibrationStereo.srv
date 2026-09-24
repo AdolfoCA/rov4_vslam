@@ -1,0 +1,5 @@
+string right_camera
+string left_camera
+string save_path
+---
+bool succeeded

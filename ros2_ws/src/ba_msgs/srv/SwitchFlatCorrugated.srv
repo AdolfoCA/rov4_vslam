@@ -1,0 +1,5 @@
+uint8 mode
+uint8 FLAT=1
+uint8 CORRUGATED=2
+---
+bool success

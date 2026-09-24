@@ -1,0 +1,5 @@
+string hostname
+string ip
+string port
+---
+bool succeeded

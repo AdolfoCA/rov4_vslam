@@ -1,0 +1,7 @@
+# This service file is used by a service to 
+# detach a stream or recording consumer
+
+# Full path to the device to attach, i.e /dev/video0
+string camera_device_path
+---
+bool succeeded

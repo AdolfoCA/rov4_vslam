@@ -1,0 +1,6 @@
+int32 exposure
+int32 contrast
+int32 gain
+int32 brightness
+---
+bool succeeded

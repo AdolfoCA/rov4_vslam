@@ -1,0 +1,5 @@
+# It's the service message for the start recording service
+
+string mission_name # parameter for passing optional mission name parameter
+---
+bool succeeded

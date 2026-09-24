@@ -1,0 +1,5 @@
+# Get the log_directory or dump_base_path
+
+std_msgs/Empty msg
+---
+string log_path # Full path to the log directory

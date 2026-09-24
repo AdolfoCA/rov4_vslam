@@ -1,0 +1,9 @@
+std_msgs/Empty request
+---
+bool restart_cfm
+string status
+string save_path
+string[] cameras_available
+string[] cameras_streaming
+string[] cameras_recording
+string[] cameras_failed

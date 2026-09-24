@@ -1,0 +1,9 @@
+# It creates a new directory, using the format *YYYY-MM-DD/flight_x*
+
+std_msgs/Empty request
+
+# Accepts a mission name, defaults to mission_1, mission_2 .. if left empty
+string mission_name
+---
+# It returns the path of the new log directory
+string log_path

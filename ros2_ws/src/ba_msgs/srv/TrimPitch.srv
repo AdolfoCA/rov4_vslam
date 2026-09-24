@@ -1,0 +1,4 @@
+string direction    # cw or ccw
+float32 step        # [Optional], if not given the trim_pitch_step parameter will be used
+---
+float32 value       # Current trim value

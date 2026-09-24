@@ -1,0 +1,6 @@
+# Stop recording, 
+
+std_msgs/Empty request
+---
+bool succeeded
+float32 duration # Video duration

@@ -1,0 +1,7 @@
+ba_msgs/PlaneWithVariance plane_estimate
+geometry_msgs/Transform motion_estimate
+bool estimate_motion
+uint64 timestamp
+builtin_interfaces/Time stamp
+int32 dropped_frames
+int32 frame_number  

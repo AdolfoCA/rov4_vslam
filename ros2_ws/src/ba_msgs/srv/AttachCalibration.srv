@@ -1,0 +1,4 @@
+string camera
+string save_path
+---
+bool succeeded

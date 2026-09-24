@@ -1,0 +1,14 @@
+# This service file is used to attach a 
+# stream consumer to the camera system
+# the output stream won't be synchronized
+
+# Full path to the device to attach, i.e /dev/video0
+string camera_device_path 
+
+# IP address
+string ip_address 
+
+# Port
+string port
+---
+bool succeeded

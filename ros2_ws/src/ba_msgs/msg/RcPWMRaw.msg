@@ -1,0 +1,10 @@
+int16 port
+int16 rssi
+int16 chan1_raw
+int16 chan2_raw
+int16 chan3_raw
+int16 chan4_raw
+int16 chan5_raw
+int16 chan6_raw
+int16 chan7_raw
+int16 chan8_raw

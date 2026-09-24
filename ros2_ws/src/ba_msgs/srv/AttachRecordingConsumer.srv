@@ -1,0 +1,11 @@
+# This service file is used to attach a 
+# recording consumer to the synchronizer module
+# The saved video file will be synchronized
+
+# Full path to the device to attach, i.e /dev/video0
+string camera_device_path 
+
+# Encoding of the saved video
+string encoding
+---
+bool succeeded

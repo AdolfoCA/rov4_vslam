@@ -1,0 +1,6 @@
+# Unified service file for the trim services
+string type         # ft, dist, pitch, depth
+string direction    # left, right, up, down, cw, ccw
+float32 step        # [Optional], if not given the trim_*_step parameter will be used
+---
+float32 value       # Current trim value

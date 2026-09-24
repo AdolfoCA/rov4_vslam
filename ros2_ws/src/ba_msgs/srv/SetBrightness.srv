@@ -1,0 +1,9 @@
+# It's used to set the brightness on the lights
+
+# Channel of the light on the i2c board 
+int8 channel
+
+# Brightness value in range [0-100]
+int8 brightness
+---
+bool done
