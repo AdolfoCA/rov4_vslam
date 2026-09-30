@@ -191,8 +191,6 @@ RUN printf '%s\n' \
     "source /opt/ros/$ROS_DISTRO/setup.bash" \
     "[ -f /home/$USERNAME/ros2_ws/install/setup.bash ] && source /home/$USERNAME/ros2_ws/install/setup.bash" \
     "alias build_ws='cd /home/$USERNAME/ros2_ws && MAKEFLAGS=-j$BUILD_JOBS colcon build --symlink-install --parallel-workers $BUILD_JOBS --cmake-args -DCMAKE_BUILD_TYPE=Release && source install/setup.bash'" \
-    "alias start_mission='bash /home/$USERNAME/ros2_ws/src/start_mission.sh'" \
-    "alias stop_mission='tmux kill-session -t mission 2>/dev/null && echo Mission stopped.'" \
     "alias multicam='ros2 run bluerov2_bringup multicam.py'" \
     >> /home/$USERNAME/.bashrc
 

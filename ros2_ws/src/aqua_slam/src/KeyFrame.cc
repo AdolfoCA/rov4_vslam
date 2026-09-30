@@ -23,12 +23,14 @@
 #include "ORBmatcher.h"
 #include "ImuTypes.h"
 #include<mutex>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/core/eigen.hpp>
 
 namespace ORB_SLAM3
 {
 
 long unsigned int KeyFrame::nNextId=0;
+bool KeyFrame::sStoreColourImages=true;
 
 KeyFrame::KeyFrame():
         mnFrameId(0),  mTimeStamp(0), mnGridCols(FRAME_GRID_COLS), mnGridRows(FRAME_GRID_ROWS),
@@ -74,8 +76,16 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mpLossRefKF(F.mpLossRefKF), mPoorVision(F.mPoorVision)
 {
 
-    imgLeft = F.imgLeft.clone();
-    imgRight = F.imgRight.clone();
+    // Upstream kept full colour copies of both images in every keyframe, and with
+    // keyframe culling disabled they are never freed (~3 MB per keyframe, several
+    // keyframes per second at 960x540). Without the dense mapper only grayscale is used.
+    if (sStoreColourImages || F.imgLeft.channels() < 3) {
+        imgLeft = F.imgLeft.clone();
+        imgRight = F.imgRight.clone();
+    } else {
+        cv::cvtColor(F.imgLeft, imgLeft, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(F.imgRight, imgRight, cv::COLOR_BGR2GRAY);
+    }
 
     mnId=nNextId++;
 

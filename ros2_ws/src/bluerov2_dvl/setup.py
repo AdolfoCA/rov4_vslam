@@ -20,6 +20,9 @@ setup(
     entry_points={
         "console_scripts": [
             "dvl_node = bluerov2_dvl.dvl_node:main",
+            "dvl_calibrate = bluerov2_dvl.calibrate:main",
+            "dead_reckoning_node = bluerov2_dvl.dead_reckoning_node:main",
+            "dvl_health = bluerov2_dvl.health_node:main",
         ],
     },
 )

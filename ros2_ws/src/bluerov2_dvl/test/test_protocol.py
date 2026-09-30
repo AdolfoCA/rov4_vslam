@@ -3,10 +3,13 @@
 import json
 
 from bluerov2_dvl.protocol import (
+    encode_command,
     extract_covariance,
+    is_response_to,
     parse_beams,
     rotate_covariance_frd_to_flu,
     rotate_vector_frd_to_flu,
+    speed_of_sound,
     split_lines,
     velocity_covariance,
 )
@@ -156,3 +159,24 @@ def test_blank_lines_are_dropped():
     lines, remainder = split_lines(b"\n\n{}\n\n")
     assert lines == [b"{}"]
     assert remainder == b""
+
+
+def test_encode_command_is_one_json_line():
+    line = encode_command("set_config", {"speed_of_sound": 1480.0})
+    assert line.endswith(b"\n") and line.count(b"\n") == 1
+    assert json.loads(line) == {"command": "set_config", "parameters": {"speed_of_sound": 1480.0}}
+    assert json.loads(encode_command("calibrate_gyro")) == {"command": "calibrate_gyro"}
+
+
+def test_is_response_to():
+    response = {"response_to": "calibrate_gyro", "success": True, "type": "response"}
+    assert is_response_to(response, "calibrate_gyro")
+    assert not is_response_to(response, "reset_dead_reckoning")
+    assert not is_response_to({"type": "velocity"}, "calibrate_gyro")
+
+
+def test_speed_of_sound_reference_values():
+    # Medwin: sea water 35 ppt at 10 degC is ~1490 m/s; fresh water ~43 m/s slower.
+    assert abs(speed_of_sound(10.0, 35.0) - 1489.8) < 0.5
+    assert abs(speed_of_sound(10.0, 0.0) - 1447.0) < 1.0
+    assert speed_of_sound(10.0, 35.0, 100.0) > speed_of_sound(10.0, 35.0)

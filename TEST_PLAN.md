@@ -151,7 +151,7 @@ messages interleave and a failure in one looks like a failure in another.
 ### 4a. IMU
 
 ```bash
-ros2 launch bluerov2_bringup bluerov2.launch.py dvl:=false camera:=false foxglove:=false
+ros2 launch bluerov2_bringup bluerov2.launch.py dvl:=false camera:=false
 ```
 
 Watch the startup log. Within ten seconds you want:
@@ -195,7 +195,7 @@ ros2 topic echo /bluerov2/imu/data_raw --once
 ### 4b. DVL
 
 ```bash
-ros2 launch bluerov2_bringup bluerov2.launch.py imu:=false camera:=false foxglove:=false \
+ros2 launch bluerov2_bringup bluerov2.launch.py imu:=false camera:=false \
   dvl_ip:=192.168.2.95
 ```
 
@@ -246,7 +246,7 @@ previous ping returns, so the rate falls as altitude rises.
 ### 4c. Camera
 
 ```bash
-ros2 launch bluerov2_bringup bluerov2.launch.py imu:=false dvl:=false foxglove:=false
+ros2 launch bluerov2_bringup bluerov2.launch.py imu:=false dvl:=false
 ```
 
 The log should print an fps line every five seconds.
@@ -376,7 +376,7 @@ Those extrinsics are unmeasured. Today is a communications test, so leave them; 
 them is a separate job before any navigation work.
 
 **Foxglove:** connect to `ws://<topside-laptop-ip>:8765` and import
-`config/foxglove_layout.json` via Layout → Import from file.
+`ros2_ws/src/foxglove/rov_layout.json` via Layout → Import from file.
 
 - [ ] **[R]** Bridge connects
 - [ ] **[R]** Video shows in the Image panel (topic `image_raw/compressed`)
@@ -393,7 +393,7 @@ Even if things went badly, record a few minutes. A bag is worth more than any no
 write, because it can be replayed and re-examined offline.
 
 ```bash
-start_mission --record     # writes into ./data
+ros2 launch bluerov2_bringup record.launch.py   # writes into ./data
 ```
 
 Get, if you can: a minute stationary, a minute of slow rotation in all three axes, and a

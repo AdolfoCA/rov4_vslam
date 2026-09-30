@@ -19,6 +19,12 @@
  *    already rectified; the multi-camera streams are not.
  *  - Topics, file paths and frames are ROS parameters instead of hard-coded paths.
  *  - The sync loop sleeps when idle instead of spinning a core at 100 %.
+ *  - The image queues are bounded (parameter max_image_queue). Upstream let them grow
+ *    without limit: when tracking is slower than the cameras (measured ~12 fps against
+ *    24 fps from the multi-cameras) every unprocessed raw pair stayed in memory, about
+ *    35 MB/s, until the machine ran out of RAM, and the estimate fell further behind
+ *    real time each second. Now the oldest frames are dropped instead; the IMU is
+ *    buffered by time, so no inertial data is lost with them.
  */
 
 #include <algorithm>
@@ -152,11 +158,21 @@ public:
 	{
 		std::lock_guard<std::mutex> lock(mBufMutexLeft);
 		imgLeftBuf.push(msg);
+		DropOldest(imgLeftBuf);
 	}
 	void GrabImageRight(const ImageMsg::ConstSharedPtr &msg)
 	{
 		std::lock_guard<std::mutex> lock(mBufMutexRight);
 		imgRightBuf.push(msg);
+		DropOldest(imgRightBuf);
+	}
+	/** Keeps at most maxQueue images; counts what it drops. Caller holds the lock. */
+	void DropOldest(queue<ImageMsg::ConstSharedPtr> &buf)
+	{
+		while (buf.size() > maxQueue) {
+			buf.pop();
+			++mDropped;
+		}
 	}
 	cv::Mat GetImage(const ImageMsg::ConstSharedPtr &img_msg);
 	void SyncWithImu();
@@ -170,6 +186,9 @@ public:
 
 	bool do_rectify = false;
 	cv::Mat M1l, M2l, M1r, M2r;
+
+	size_t maxQueue = 4;
+	std::atomic<uint64_t> mDropped{0};
 };
 
 int main(int argc, char **argv)
@@ -191,6 +210,9 @@ int main(int argc, char **argv)
 	const string dvl_frame = node->declare_parameter<string>("dvl_velocity_frame", "flu");
 	const bool rectify = node->declare_parameter<bool>("rectify", false);
 	const string log_dir = node->declare_parameter<string>("log_dir", "");
+	// Images waiting per camera. When tracking is slower than the cameras the oldest are
+	// dropped, so memory stays bounded and the estimate stays close to real time.
+	const int max_image_queue = node->declare_parameter<int>("max_image_queue", 4);
 	// read by the SLAM core (RosHandling, System, DenseMapper)
 	node->declare_parameter<string>("map_frame", "aqua_slam_map");
 	node->declare_parameter<string>("body_frame", "aqua_slam_camera");
@@ -216,6 +238,7 @@ int main(int argc, char **argv)
 	ImuGrabber imugb;
 	DVLGrabber dvlgb(dvl_frame == "flu");
 	ImageGrabber igb(&SLAM, &imugb, &dvlgb);
+	igb.maxQueue = static_cast<size_t>(std::max(1, max_image_queue));
 
 	if (rectify) {
 		if (!igb.InitRectification(settings_path)) {
@@ -247,6 +270,16 @@ int main(int argc, char **argv)
 	            transport.c_str(), rectify ? "on" : "off");
 
 	std::thread sync_thread(&ImageGrabber::SyncWithImu, &igb);
+
+	// Report dropped frames: tracking slower than the cameras shows up here, not as RAM.
+	auto drop_timer = node->create_wall_timer(std::chrono::seconds(10), [&igb, &node]() {
+		const uint64_t dropped = igb.mDropped.exchange(0);
+		if (dropped > 0) {
+			RCLCPP_WARN(node->get_logger(),
+			            "tracking slower than the cameras: dropped %.1f image pairs/s in the last 10 s",
+			            dropped / 20.0);
+		}
+	});
 
 	// Callbacks on several threads: the SLAM core publishes and serves ~/save etc.
 	// from its own threads, and a long service call must not stall the sensor queues.

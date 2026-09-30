@@ -13,6 +13,7 @@ install(PROGRAMS
   scripts/check_streams.py
   scripts/multicam.py
   scripts/preflight.py
+  scripts/recording_manager.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

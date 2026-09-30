@@ -19,6 +19,8 @@ Arguments:
     dvl_velocity_frame:=flu   flu if bluerov2_dvl has rotate_to_flu (default), else frd
     vocabulary:=<file>        ORB vocabulary (default /opt/aqua_slam/Vocabulary/ORBvoc.txt)
     log_dir:=                 directory for the per-frame debug log (empty = off)
+    max_image_queue:=4        images waiting per camera; older ones are dropped when
+                              tracking is slower than the cameras (keeps RAM bounded)
     traj_path:=<file>         where `ros2 service call /aqua_slam/save std_srvs/srv/Empty`
                               writes the keyframe trajectory
     use_sim_time:=false
@@ -57,6 +59,7 @@ def generate_launch_description() -> LaunchDescription:
             "vocabulary", default_value="/opt/aqua_slam/Vocabulary/ORBvoc.txt"
         ),
         DeclareLaunchArgument("log_dir", default_value=""),
+        DeclareLaunchArgument("max_image_queue", default_value="4"),
         DeclareLaunchArgument(
             "traj_path", default_value="/home/rosdev/data/aqua_slam_keyframes.txt"
         ),
@@ -80,6 +83,9 @@ def generate_launch_description() -> LaunchDescription:
                 "rectify": ParameterValue(LaunchConfiguration("rectify"), value_type=bool),
                 "dvl_velocity_frame": LaunchConfiguration("dvl_velocity_frame"),
                 "log_dir": LaunchConfiguration("log_dir"),
+                "max_image_queue": ParameterValue(
+                    LaunchConfiguration("max_image_queue"), value_type=int
+                ),
                 "traj_path": LaunchConfiguration("traj_path"),
                 "use_sim_time": ParameterValue(
                     LaunchConfiguration("use_sim_time"), value_type=bool

@@ -49,10 +49,13 @@ Inside the container (`docker compose exec bluerov2 bash`), after plugging in th
 # 1. START: waits until everything is reachable, then drivers, cameras, a light flash, checks
 ros2 launch bluerov2_bringup session_start.launch.py
 
-# 2. RECORD (second shell), as often as you like; Ctrl-C to stop a recording
+# 2. FOXGLOVE (second shell), if you want the GUI; it logs a lot, so it has its own terminal
+ros2 launch bluerov2_bringup foxglove.launch.py
+
+# 3. RECORD: Start/Stop in Foxglove (Record tab), or in a third shell (Ctrl-C to stop)
 ros2 launch bluerov2_bringup record.launch.py bag_name:=dive01
 
-# 3. STOP at the end: streams off, lights off, multi-camera computer powered off
+# 4. STOP at the end: streams off, lights off, multi-camera computer powered off
 ros2 launch bluerov2_bringup session_stop.launch.py
 #    -> unplug the battery only after it prints "safe to unplug"
 ```
@@ -89,6 +92,42 @@ computer to boot. Keep this shell open: Ctrl-C here stops the drivers.
 all channels, powers off the multi-camera computer over SSH and waits until it stops
 answering (plus 10 s). It prints **SESSION STOPPED … safe to unplug** or **NOT SAFE TO
 UNPLUG YET**. BlueOS is left on. Measured: 57 s.
+
+### DVL calibration at the surface
+
+Once the session is ready, float the vehicle **at the surface, disarmed and still**
+(transducers in the water), then in a second shell:
+
+```bash
+ros2 run bluerov2_dvl dvl_calibrate --water-temp 12 --salinity 0   # fresh water, 12 °C
+ros2 run bluerov2_dvl dvl_calibrate --water-temp 10 --salinity 35  # sea water
+ros2 run bluerov2_dvl dvl_calibrate --dry-run                      # check only
+```
+
+It (1) reads the DVL config, (2) checks for 10 s that the vehicle is still — IMU
+angular rate < 1 °/s and, if the DVL has bottom lock, DVL speed < 0.05 m/s — and aborts
+if not, (3) sets the DVL sound speed from temperature and salinity (Medwin; a wrong sound
+speed is a scale error on every velocity, ~3 % between fresh and sea water), (4) runs the
+DVL's `calibrate_gyro` and checks the vehicle stayed still, (5) runs
+`reset_dead_reckoning`, so `dvl/dead_reckoning` starts at 0 at the surface. A JSON record
+goes to `~/dvl_calibration/`. Exit code 0 = OK, 1 = moved during calibration or error,
+2 = not still (nothing changed). The script cannot see depth; being at the surface is up
+to you. `dvl_node` can keep running: the script opens its own connection.
+
+### Is the DVL data good?
+
+```bash
+ros2 run bluerov2_dvl dvl_health            # live verdict every 2 s
+ros2 run bluerov2_dvl dvl_health --still    # vehicle still: also velocity noise and bias
+```
+
+It checks, over the last 5 s: report rate, bottom lock (`velocity_valid`), each of the 4
+beams (`beam_valid`), `fom` (the DVL's own velocity standard deviation: < 0.01 m/s good,
+< 0.05 usable), the altitude against the beam ranges it is computed from (mean range x
+cos 22.5°), the spread of the 4 ranges (large on a flat floor = tilted vehicle or a beam
+on a wall), speed > 1 m/s (AQUA-SLAM drops those) and, with `--still`, velocity noise
+and bias. Each line is GOOD / CHECK / BAD with the reason. The checks are in
+`bluerov2_dvl/health.py`.
 
 ## 3. First-time setup on a new laptop
 
@@ -143,16 +182,6 @@ ros2 launch bluerov2_bringup bluerov2.launch.py camera:=false     # no nose came
 ros2 launch bluerov2_bringup bluerov2.launch.py stereo_bottom:=true bottom_most:=true   # all 4 multicams
 ros2 launch bluerov2_bringup bluerov2.launch.py aux_left:=false aux_right:=false        # no multicams
 ros2 launch bluerov2_bringup bluerov2.launch.py dvl_ip:=192.168.2.95
-ros2 launch bluerov2_bringup bluerov2.launch.py foxglove:=false   # no websocket
-```
-
-Or use the tmux helper, which runs the drivers, a rate monitor and an optional
-recording in separate windows:
-
-```bash
-start_mission            # drivers only
-start_mission --record   # + an MCAP rosbag into ./data
-stop_mission
 ```
 
 After editing source on the host, rebuild inside the container with `build_ws` — the
@@ -199,35 +228,36 @@ ros2 launch bluerov2_bringup record.launch.py check_only:=true
 ros2 launch bluerov2_bringup record.launch.py bag_name:=dive01
 ```
 
-Every sensor has its own switch. **Defaults: IMU, DVL and the multi-camera top pair on;
-nose camera and bottom pair off.**
+**What is recorded is set in `ros2_ws/src/bluerov2_bringup/config/recording.yaml`.**
+Topics are grouped by sensor; each group has `enabled: true|false`, its topics, and the
+stream it is checked on. Edit and save; no rebuild needed. Defaults: IMU, DVL, dead
+reckoning, the multi-camera top pair (JPEG), TF and logs on; nose camera and bottom pair
+off. Any group can be switched for one recording from the command line:
 
 ```bash
-ros2 launch bluerov2_bringup record.launch.py camera:=true                        # + nose camera
-ros2 launch bluerov2_bringup record.launch.py camera:=true camera_raw:=false      # + nose camera, JPEG only
-ros2 launch bluerov2_bringup record.launch.py stereo_bottom:=true bottom_most:=true   # + bottom pair
-ros2 launch bluerov2_bringup record.launch.py dvl:=false                          # no DVL
-ros2 launch bluerov2_bringup record.launch.py multicam_raw:=true                  # + uncompressed multicam frames
+ros2 launch bluerov2_bringup record.launch.py nose_camera:=true                     # + nose camera
+ros2 launch bluerov2_bringup record.launch.py stereo_bottom:=true bottom_most:=true # + bottom pair
+ros2 launch bluerov2_bringup record.launch.py dvl:=false                            # no DVL
 ```
 
-| Argument | Default | Records |
-|---|---|---|
-| `imu` | `true` | `imu/data`, `imu/data_raw`, `imu/mag`, `imu/pressure`, `imu/temperature` |
-| `dvl` | `true` | `dvl/velocity`, `dvl/report`, `dvl/altitude`, `dvl/dead_reckoning`, `dvl/dead_reckoning_odometry` |
-| `camera` | `false` | nose camera `camera/camera_info` + the two below |
-| `camera_raw` | `true` | nose `camera/image_raw` (1080p, ~187 MB/s) |
-| `camera_compressed` | `true` | nose `camera/image_raw/compressed` (JPEG) |
-| `aux_left`, `aux_right` | `true` | multi-camera top pair |
-| `stereo_bottom`, `bottom_most` | `false` | multi-camera bottom pair |
-| `multicam_raw` | `false` | `multicam/<camera>/image_raw` (960×540, ~39 MB/s per camera) |
-| `multicam_compressed` | `true` | `multicam/<camera>/image_raw/compressed` (JPEG) |
-| `tf` / `logs` | `true` | `/tf`, `/tf_static` / `/rosout` |
-| `check` | `true` | check the selected streams before recording |
-| `check_only` | `false` | only run the check, do not record |
-| `check_timeout` | `10` | seconds to wait for the first message of each stream |
-| `bag_name` | `rov_YYYYmmdd_HHMMSS` | one folder per recording, in `rov4_vslam/data/` |
-| `max_bag_duration` | `60` | split the bag every N seconds (0 = one file) |
-| `storage` | `mcap` | or `sqlite3` |
+A misspelled group name stops with the list of valid ones. Other arguments: `config`
+(another YAML), `output_dir`, `bag_name`, `check`, `check_only`, `check_timeout`,
+`storage`, `max_bag_duration`.
+
+**How camera data is saved.** Images go into the same MCAP bag as every other sensor,
+as ROS messages: per camera `camera_info` (calibration, one per frame) and
+`image_raw/compressed` (each frame a JPEG, quality 90 for the multi-cameras, 85 for the
+nose camera). Every frame keeps its `header.stamp`, on the same clock as IMU and DVL.
+Raw `image_raw` is off by default (commented out in the YAML): it is lossless but
+~39 MB/s per multi-camera and ~187 MB/s for the nose camera. To get image files out
+of a bag, play it back and save the frames, or read the MCAP directly (e.g. with the
+`mcap` / `rosbags` Python packages).
+
+**From Foxglove.** `bluerov2.launch.py` also starts `recording_manager`, which runs this
+same launch file for you: the **Record** tab of the layout has Start / Stop buttons, a
+**Set folder** box (a subfolder of `data/`, e.g. `pool_test`), and the recorder's
+status. The Overview tab has the Start / Stop bar too. Bags go to
+`data/<folder>/rov_YYYYmmdd_HHMMSS`. Only `data/` is kept outside the container.
 
 **The stream check.** Before recording, `check_streams.py` subscribes to each selected
 sensor, waits up to `check_timeout` for data and measures the rate. It prints a table
@@ -271,6 +301,9 @@ All under the `/bluerov2` namespace by default.
 | `dvl/altitude` | `sensor_msgs/Range` | ≤15 Hz | |
 | `dvl/dead_reckoning` | `bluerov2_msgs/DVLDeadReckoning` | ~5 Hz | instrument's own integration |
 | `dvl/dead_reckoning_odometry` | `nav_msgs/Odometry` | ~5 Hz | same, as odometry |
+| `dead_reckoning/odometry` | `nav_msgs/Odometry` | ~5 Hz | IMU heading + DVL velocity, `odom → base_link` (also on `/tf`) |
+| `dead_reckoning/path` | `nav_msgs/Path` | 2 Hz, latched | that track |
+| `dead_reckoning/dvl_path` | `nav_msgs/Path` | 2 Hz, latched | `dvl/dead_reckoning` placed in `odom`, for comparison |
 | `camera/image_raw` | `sensor_msgs/Image` | 30 fps | `bgr8`, nose camera |
 | `camera/camera_info` | `sensor_msgs/CameraInfo` | 30 fps | zeros until calibrated |
 | `camera/image_raw/compressed` | `sensor_msgs/CompressedImage` | 30 fps | JPEG; on when the Foxglove bridge runs |
@@ -293,8 +326,9 @@ until the previous ping returns, so the rate falls as altitude rises.
 
 ## 8. Foxglove
 
-`foxglove_bridge` starts with the main launch by default. Point Foxglove — the desktop
-app, or the web app at app.foxglove.dev — at:
+Start the bridge in its own terminal (it is no longer part of the bring-up, because it
+logs a lot): `ros2 launch bluerov2_bringup foxglove.launch.py`. Point Foxglove — the
+desktop app, or the web app at app.foxglove.dev — at:
 
 ```
 ws://<host running the container>:8765
@@ -306,16 +340,29 @@ leaves the machine: the bridge multiplexes the entire graph over that one websoc
 This matters on a boat, where DDS multicast discovery across a tether or a shared lab
 network is one of the more reliable ways to lose an afternoon.
 
-A prepared layout is at `ros2_ws/src/bluerov2_bringup/config/foxglove_layout.json` —
-3D scene with the frame tree, camera image, IMU rate and acceleration plots, DVL
-velocity, and an altitude/FOM plot for watching bottom lock. Import it with
-**Layout → Import from file**. If your Foxglove version rejects part of it, the panels
-take a minute to add by hand; the topic paths above are the ones you want. For the
-multi-cameras, add an Image panel on `multicam/<camera>/image_raw/compressed`.
-
-A fuller tabbed layout (Overview, IMU, DVL, all five cameras, 3D + log) is
-`config/foxglove/rov_layout.json`. It is generated by `config/foxglove/make_layout.js`:
+**The layout is `ros2_ws/src/foxglove/rov_layout.json`** (Layout → Import from file), deliberately kept small:
+Overview (cameras, recording bar, DVL health, velocity, altitude, attitude), Record
+(folder, start/stop, status), DVL (health checklist and detail, velocity, altitude,
+beam ranges), Cameras, 3D (dead-reckoning tracks, log). It is generated by `make_layout.js` in the same folder:
 edit the panels there and run `node make_layout.js [namespace]` to regenerate it.
+
+### Dead reckoning in the 3D panel
+
+The **3D + log** tab of `rov_layout.json` is drawn in the `odom` frame and shows two
+tracks, both from `dead_reckoning_node` (started by `bluerov2.launch.py`, turn off with
+`dead_reckoning:=false`):
+
+- **orange** `dead_reckoning/path`: DVL velocity, rotated by the vehicle IMU attitude
+  (ArduSub, magnetometer heading) and the TF mounting, lever arm removed, integrated.
+- **purple** `dead_reckoning/dvl_path`: the DVL's own dead reckoning (its own gyro),
+  rotated and shifted onto the orange track at the first report and after each reset.
+
+Both start where they are reset: `dvl_calibrate` resets both, or reset only the orange one
+with `ros2 service call /bluerov2/dead_reckoning/reset std_srvs/srv/Trigger`. Without
+bottom lock `dvl/velocity` stops and the position is held. The tracks should lie on top
+of each other; if they fan apart, one heading is wrong (compass not calibrated, a DVL
+yaw offset missing in `extrinsics.yaml`, magnetic disturbance near the pool). Both drift
+and are for checking sensors, not for navigation.
 
 ### Video bandwidth
 
@@ -323,13 +370,13 @@ Raw `bgr8` at 1080p30 is about **186 MB/s**. No websocket will carry that, and F
 will stall and then be dropped by the bridge's send buffer. The same frames as JPEG are
 about **5 MB/s**, which is fine.
 
-So the launch file turns JPEG republishing on automatically whenever the bridge is
-running (`compressed_video:=auto`, the default) and you should point Foxglove's Image
+So the nose camera always publishes JPEG as well (`compressed_video:=true`, the
+default; the multi-cameras always do), and you should point Foxglove's Image
 panel at `camera/image_raw/compressed`, which the prepared layout already does. The
 raw topic stays available for local consumers — a SLAM front end in the same container
 pays no encode cost and reads `image_raw` directly.
 
-Override with `compressed_video:=true|false` if you want to decide yourself.
+`compressed_video:=false` saves the encode CPU when nobody watches or records JPEG.
 
 ### Bridge configuration
 
@@ -493,27 +540,30 @@ rov4_vslam/
 ├── TOPSIDE_SETUP.md               what every topside laptop needs
 ├── data/                          recordings + .multicam_ssh (git-ignored)
 └── ros2_ws/src/
-    ├── start_mission.sh
     ├── bluerov2_msgs/             DVLReport, DVLBeam, DVLDeadReckoning
     ├── ba_msgs/                   multi-camera system services (Blue Atlas Robotics)
     ├── bluerov2_imu/              MAVLink driver + frames.py + time_sync.py
-    ├── bluerov2_dvl/              TCP JSON driver + protocol.py
+    ├── bluerov2_dvl/              TCP JSON driver, dvl_calibrate, dvl_health, dead reckoning
     ├── bluerov2_camera/           GStreamer driver (H.264 / H.265) + calibration.py
     ├── bluerov2_tf/               static TF node + extrinsics.py (parse & validate)
+    ├── aqua_slam/                 stereo + DVL + gyro SLAM (section 8b)
+    ├── foxglove/                  rov_layout.json (import in Foxglove) + make_layout.js
     └── bluerov2_bringup/          launch, scripts and configuration
         ├── launch/session_start.launch.py   preflight + drivers + cameras + checks
         ├── launch/session_stop.launch.py    streams off, lights off, camera computer off
         ├── launch/record.launch.py          stream check + rosbag recording
-        ├── launch/bluerov2.launch.py        drivers + multicams + QGC relay + TF + Foxglove
+        ├── launch/bluerov2.launch.py        drivers + multicams + QGC relay + TF + DVL tools
+                                             + recording_manager
         ├── launch/foxglove.launch.py        the bridge on its own
         ├── scripts/preflight.py             waits for Pi, IMU, DVL, camera computer
         ├── scripts/multicam.py              the `multicam` command
         ├── scripts/check_streams.py         the stream check
+        ├── scripts/recording_manager.py     start/stop recordings from Foxglove
         ├── config/bluerov2.yaml             driver parameters (incl. the 4 multicams)
+        ├── config/recording.yaml            which topics are recorded
         ├── config/multicam_ssh.example      template for data/.multicam_ssh
         ├── config/extrinsics.yaml           sensor mounting — measure these
         ├── config/foxglove_bridge.yaml      bridge parameters
-        ├── config/foxglove_layout.json      importable Foxglove layout
         └── config/camera_info.yaml          placeholder calibration
 ```
 

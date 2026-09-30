@@ -5,62 +5,32 @@
 Run it next to the drivers (``bluerov2.launch.py``), in a second shell. Stop it with
 Ctrl-C: the recorder closes the bag cleanly on SIGINT.
 
-Choose what to record with one switch per sensor. By default: IMU, DVL and the top pair
-of the multi-camera system (aux_left, aux_right). The nose camera and the bottom pair
-are off.
+What is recorded is set in ``config/recording.yaml``: topics grouped by sensor, each
+group enabled or not, and the stream each group is checked on. Edit and save it; no
+rebuild is needed. Any group can be switched from the command line as well:
 
-    ros2 launch bluerov2_bringup record.launch.py camera:=true           # add nose camera
+    ros2 launch bluerov2_bringup record.launch.py nose_camera:=true
     ros2 launch bluerov2_bringup record.launch.py stereo_bottom:=true bottom_most:=true
     ros2 launch bluerov2_bringup record.launch.py check_only:=true       # just check
+    ros2 launch bluerov2_bringup record.launch.py config:=/path/other.yaml
 
 Stream check
 ------------
-Before the recorder starts, every selected sensor is checked: the script
-``check_streams.py`` waits for data from each one and measures its rate. If any sensor
-is silent or slower than its minimum rate, it prints which one and the recording is
-NOT started. ``check_only:=true`` runs only the check (useful at the start of a
-session); ``check:=false`` skips it.
-
-    sensor          checked on                      minimum
-    imu             imu/data_raw                    50 Hz
-    dvl             dvl/report                       1 Hz   (reports arrive in air too)
-    camera          camera/camera_info              10 Hz
-    <multicam>      multicam/<camera>/camera_info   10 Hz
+Before the recorder starts, every enabled group that has a ``check`` entry is checked:
+``check_streams.py`` waits for data on that topic and measures its rate. If any is
+silent or slower than its ``min_hz``, it prints which one and the recording is NOT
+started. ``check_only:=true`` runs only the check; ``check:=false`` skips it.
 
 Launch arguments (all optional):
 
-    Sensors
-    imu:=true|false                record every IMU topic              (default true)
-    dvl:=true|false                record every DVL topic              (default true)
-    camera:=true|false             record the ROV nose camera, camera_info always with it
-                                   (default false)
-    camera_raw:=true|false         nose camera/image_raw            (~187 MB/s!)
-    camera_compressed:=true|false  nose camera/image_raw/compressed (~15 MB/s)
-    aux_left:=true|false           multi-camera Aux Left       (default true)
-    aux_right:=true|false          multi-camera Aux Right      (default true)
-    stereo_bottom:=true|false      multi-camera Stereo Bottom  (default false)
-    bottom_most:=true|false        multi-camera Bottom Most    (default false)
-    multicam_raw:=true|false       multi-camera image_raw, 960x540 (~39 MB/s per camera)
-                                   (default false)
-    multicam_compressed:=true|false  multi-camera image_raw/compressed, JPEG
-                                   (default true)
-    tf:=true|false                 record /tf and /tf_static
-    logs:=true|false               record /rosout, i.e. every node's log output
-
-    Check
+    config:=<path>                 topic selection (default: config/recording.yaml)
+    <group>:=true|false            override one group's `enabled` from the config
     check:=true|false              check the selected streams before recording
     check_only:=true|false         only check, do not record
     check_timeout:=10              seconds to wait for the first message of each stream
-
-    Output
-    namespace:=bluerov2            namespace the drivers were launched in
-    output_dir:=/home/rosdev/data  parent directory; bind-mounted to rov4_vslam/data
+    output_dir:=/home/rosdev/data  parent directory; bind-mounted to the project's data/
     bag_name:=<name>               default rov_YYYYmmdd_HHMMSS
-    storage:=mcap|sqlite3          bag format
-    max_bag_duration:=60           split into files of this many seconds; 0 = no split
-
-A multi-camera switch only records that camera if its node is running: start it with
-the matching argument of bluerov2.launch.py (aux_left and aux_right are on by default).
+    namespace:=, storage:=, max_bag_duration:=   override the config's values
 
 Timestamps
 ----------
@@ -88,6 +58,8 @@ import os
 import shutil
 from datetime import datetime
 
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -102,41 +74,8 @@ from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-IMU_TOPICS = [
-    "imu/data",
-    "imu/data_raw",
-    "imu/mag",
-    "imu/pressure",
-    "imu/temperature",
-]
-DVL_TOPICS = [
-    "dvl/velocity",
-    "dvl/report",
-    "dvl/altitude",
-    "dvl/dead_reckoning",
-    "dvl/dead_reckoning_odometry",
-]
-TF_TOPICS = ["/tf", "/tf_static"]
-LOG_TOPICS = ["/rosout"]
-
-# Multi-camera system cameras and whether each is recorded by default. Keep the names
-# in step with MULTICAM_CAMERAS in bluerov2.launch.py.
-MULTICAM_CAMERAS = {
-    "aux_left": "true",
-    "aux_right": "true",
-    "stereo_bottom": "false",
-    "bottom_most": "false",
-}
-
-# What the stream check subscribes to for each sensor, and the minimum rate that counts
-# as "on". Cameras are checked on camera_info, published once per frame.
-CAMERA_INFO = "sensor_msgs/msg/CameraInfo"
-CHECKS = {
-    "imu": ("imu/data_raw", "sensor_msgs/msg/Imu", 50),
-    "dvl": ("dvl/report", "bluerov2_msgs/msg/DVLReport", 1),
-    "camera": ("camera/camera_info", CAMERA_INFO, 10),
-}
-MULTICAM_MIN_HZ = 10
+DEFAULT_CONFIG = os.path.join(
+    get_package_share_directory("bluerov2_bringup"), "config", "recording.yaml")
 
 
 def _flag(context, name: str) -> bool:
@@ -145,8 +84,19 @@ def _flag(context, name: str) -> bool:
     )
 
 
+def _override(context, name: str, default):
+    """The command-line value of ``name`` if one was given, else ``default``."""
+    value = context.launch_configurations.get(name, "").strip()
+    return value if value else default
+
+
 def _recorder(context, *_args, **_kwargs):
-    namespace = LaunchConfiguration("namespace").perform(context).strip("/")
+    config_path = os.path.expanduser(LaunchConfiguration("config").perform(context))
+    with open(config_path) as f:
+        config = yaml.safe_load(f) or {}
+    groups = config.get("groups") or {}
+    output = config.get("output") or {}
+    namespace = str(_override(context, "namespace", config.get("namespace", ""))).strip("/")
 
     def ns(topic: str) -> str:
         # Driver topics are relative and live under the namespace; TF and /rosout are
@@ -155,39 +105,28 @@ def _recorder(context, *_args, **_kwargs):
             return topic if topic.startswith("/") else "/" + topic
         return f"/{namespace}/{topic}"
 
+    unknown = [k for k in context.launch_configurations
+               if k not in groups and k not in KNOWN_ARGUMENTS]
+    if unknown:
+        raise RuntimeError(
+            f"record.launch.py: unknown argument(s) {', '.join(unknown)}; groups in "
+            f"{config_path} are: {', '.join(groups)}")
+
     topics = []
     checks = []  # (label, topic, type, min_hz)
-    if _flag(context, "imu"):
-        topics += IMU_TOPICS
-        checks.append(("imu", *CHECKS["imu"]))
-    if _flag(context, "dvl"):
-        topics += DVL_TOPICS
-        checks.append(("dvl", *CHECKS["dvl"]))
-    if _flag(context, "camera"):
-        topics.append("camera/camera_info")
-        if _flag(context, "camera_raw"):
-            topics.append("camera/image_raw")
-        if _flag(context, "camera_compressed"):
-            topics.append("camera/image_raw/compressed")
-        checks.append(("camera", *CHECKS["camera"]))
-    for camera in MULTICAM_CAMERAS:
-        if not _flag(context, camera):
+    for name, group in groups.items():
+        enabled = str(_override(context, name, group.get("enabled", False))).lower()
+        if enabled not in ("true", "1", "yes", "on"):
             continue
-        base = f"multicam/{camera}"
-        topics.append(f"{base}/camera_info")
-        if _flag(context, "multicam_raw"):
-            topics.append(f"{base}/image_raw")
-        if _flag(context, "multicam_compressed"):
-            topics.append(f"{base}/image_raw/compressed")
-        checks.append((camera, f"{base}/camera_info", CAMERA_INFO, MULTICAM_MIN_HZ))
-    if _flag(context, "tf"):
-        topics += TF_TOPICS
-    if _flag(context, "logs"):
-        topics += LOG_TOPICS
-    topics = [ns(t) for t in topics]
+        topics += group.get("topics") or []
+        check = group.get("check")
+        if check:
+            checks.append((name, check["topic"], check["type"], check["min_hz"]))
+    topics += config.get("extra_topics") or []
+    topics = list(dict.fromkeys(ns(t) for t in topics))   # unique, in order
 
     if not topics:
-        raise RuntimeError("record.launch.py: every sensor is disabled, nothing to record")
+        raise RuntimeError(f"record.launch.py: nothing enabled in {config_path}")
 
     check_only = _flag(context, "check_only")
     run_check = (_flag(context, "check") or check_only) and bool(checks)
@@ -228,16 +167,18 @@ def _recorder(context, *_args, **_kwargs):
 
     cmd = [
         "ros2", "bag", "record",
-        "-s", LaunchConfiguration("storage").perform(context),
+        "-s", str(_override(context, "storage", output.get("storage", "mcap"))),
         "-o", bag_path,
     ]
-    max_duration = int(LaunchConfiguration("max_bag_duration").perform(context))
+    max_duration = int(_override(context, "max_bag_duration",
+                                 output.get("max_bag_duration", 60)))
     if max_duration > 0:
         cmd += ["-d", str(max_duration)]
     cmd += topics
 
     recording = [
-        LogInfo(msg=f"Recording to {bag_path}  ({free_gb:.1f} GB free)"),
+        LogInfo(msg=f"Recording to {bag_path}  ({free_gb:.1f} GB free), "
+                    f"topics from {config_path}"),
         LogInfo(msg="Topics:\n  " + "\n  ".join(topics)),
         ExecuteProcess(
             cmd=cmd,
@@ -269,32 +210,27 @@ def _recorder(context, *_args, **_kwargs):
     ]
 
 
+# Arguments that are not group names. Anything else given on the command line must
+# be a group of the config, so a typo fails loudly instead of recording the wrong set.
+KNOWN_ARGUMENTS = {
+    "config", "check", "check_only", "check_timeout", "namespace", "output_dir",
+    "bag_name", "storage", "max_bag_duration",
+}
+
+
 def generate_launch_description() -> LaunchDescription:
     return LaunchDescription(
         [
-            DeclareLaunchArgument("imu", default_value="true"),
-            DeclareLaunchArgument("dvl", default_value="true"),
-            DeclareLaunchArgument("camera", default_value="false"),
-            DeclareLaunchArgument("camera_raw", default_value="true"),
-            DeclareLaunchArgument("camera_compressed", default_value="true"),
-        ]
-        + [
-            DeclareLaunchArgument(camera, default_value=default)
-            for camera, default in MULTICAM_CAMERAS.items()
-        ]
-        + [
-            DeclareLaunchArgument("multicam_raw", default_value="false"),
-            DeclareLaunchArgument("multicam_compressed", default_value="true"),
-            DeclareLaunchArgument("tf", default_value="true"),
-            DeclareLaunchArgument("logs", default_value="true"),
+            DeclareLaunchArgument("config", default_value=DEFAULT_CONFIG),
             DeclareLaunchArgument("check", default_value="true"),
             DeclareLaunchArgument("check_only", default_value="false"),
             DeclareLaunchArgument("check_timeout", default_value="10"),
-            DeclareLaunchArgument("namespace", default_value="bluerov2"),
             DeclareLaunchArgument("output_dir", default_value="/home/rosdev/data"),
             DeclareLaunchArgument("bag_name", default_value=""),
-            DeclareLaunchArgument("storage", default_value="mcap"),
-            DeclareLaunchArgument("max_bag_duration", default_value="60"),
+            # Empty = take it from the config.
+            DeclareLaunchArgument("namespace", default_value=""),
+            DeclareLaunchArgument("storage", default_value=""),
+            DeclareLaunchArgument("max_bag_duration", default_value=""),
             OpaqueFunction(function=_recorder),
         ]
     )

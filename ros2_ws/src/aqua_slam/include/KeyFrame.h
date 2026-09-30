@@ -452,6 +452,10 @@ public:
 public:
 
     static long unsigned int nNextId;
+    // Keep keyframe images in colour (needed by the dense mapper's coloured point
+    // clouds) or grayscale (a third of the memory). Set by DenseMapper from its
+    // `enable` setting before any keyframe exists.
+    static bool sStoreColourImages;
     long unsigned int mnId;
     const long unsigned int mnFrameId;
 

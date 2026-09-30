@@ -49,6 +49,7 @@ namespace ORB_SLAM3
         mMeanK = (int) node["mean_k"];
         mStdThred = (float) node["std_thred"];
         mEnable = !((float) node["enable"] == 0);
+        KeyFrame::sStoreColourImages = mEnable;
 
         mParam = DepthEstParamters(P1, P2, correlation_window_size, disp12MaxDiff, disparity_range,
                                    min_disparity, prefilter_cap, prefilter_size, speckle_range, speckle_size,

@@ -9,6 +9,7 @@ Everything here works on plain Python types. The node turns the results into mes
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -140,3 +141,35 @@ def _as_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+# -- Commands -------------------------------------------------------------------------
+#
+# The same TCP port accepts commands: one JSON object per line, answered by a report of
+# ``type`` "response" whose ``response_to`` names the command. Several clients may be
+# connected at once, so a command can be sent while the driver keeps streaming.
+
+
+def encode_command(command: str, parameters: Optional[Dict[str, Any]] = None) -> bytes:
+    """Return one command line ready to write to the socket."""
+    message: Dict[str, Any] = {"command": command}
+    if parameters is not None:
+        message["parameters"] = parameters
+    return (json.dumps(message) + "\n").encode("utf-8")
+
+
+def is_response_to(report: Dict[str, Any], command: str) -> bool:
+    return report.get("type") == "response" and report.get("response_to") == command
+
+
+def speed_of_sound(temperature_c: float, salinity_ppt: float, depth_m: float = 0.0) -> float:
+    """Speed of sound in water [m/s] from Medwin's (1975) formula.
+
+    Valid for 0-35 degC, 0-45 ppt and depths below 1000 m, which covers any dive a
+    BlueROV2 makes. Use salinity 0 for fresh water, about 35 for the open sea.
+    """
+    t, s, z = float(temperature_c), float(salinity_ppt), float(depth_m)
+    return (
+        1449.2 + 4.6 * t - 0.055 * t * t + 0.00029 * t ** 3
+        + (1.34 - 0.01 * t) * (s - 35.0) + 0.016 * z
+    )

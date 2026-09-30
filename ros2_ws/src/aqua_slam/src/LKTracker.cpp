@@ -428,9 +428,13 @@ bool LKTracker::trackFrame(Frame &cur_frame, const Frame &prev_frame)
 	cv::Mat prev_img_rgb = prev_frame.imgLeft.clone();
 	if (cur_img_rgb.channels() > 1) {
 		cv::cvtColor(cur_img_rgb, cur_img, cv::COLOR_BGR2GRAY);
+	} else {
+		cur_img = cur_img_rgb;
 	}
 	if (prev_img_rgb.channels() > 1) {
 		cv::cvtColor(prev_img_rgb, prev_img, cv::COLOR_BGR2GRAY);
+	} else {
+		prev_img = prev_img_rgb;
 	}
 
 	prev_pts.clear();
@@ -680,9 +684,13 @@ bool LKTracker::TrackReferenceKeyFrameKLT(KeyFrame *pKF, const Frame &cur_frame)
 	cv::Mat prev_img_rgb = pKF->imgLeft.clone();
 	if (cur_img_rgb.channels() > 1) {
 		cv::cvtColor(cur_img_rgb, cur_img, cv::COLOR_BGR2GRAY);
+	} else {
+		cur_img = cur_img_rgb;
 	}
 	if (prev_img_rgb.channels() > 1) {
 		cv::cvtColor(prev_img_rgb, prev_img, cv::COLOR_BGR2GRAY);
+	} else {
+		prev_img = prev_img_rgb;
 	}
 
 	prev_pts.clear();

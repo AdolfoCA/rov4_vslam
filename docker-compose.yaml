@@ -63,6 +63,14 @@ services:
     # here, and the UDP inputs would need their own mappings.
     network_mode: host
 
+    # Memory cap for everything in the container. If a process runs away (AQUA-SLAM
+    # keeps every keyframe for the whole dive), the kernel kills it inside the
+    # container instead of freezing the laptop. Swap is capped at the same value, i.e.
+    # no swapping. 8 GB leaves room for an AQUA-SLAM build (~4 GB per compiler job)
+    # plus a SLAM run; change with CONTAINER_MEM_LIMIT=12g docker compose up -d.
+    mem_limit: ${CONTAINER_MEM_LIMIT:-8g}
+    memswap_limit: ${CONTAINER_MEM_LIMIT:-8g}
+
     # Only needed for direct hardware access (a USB serial MAVLink link, a local
     # camera). Drop both lines if everything reaches you over Ethernet.
     privileged: true

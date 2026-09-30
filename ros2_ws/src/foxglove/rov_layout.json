@@ -1,0 +1,636 @@
+{
+  "configById": {
+    "Image!rov0": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/camera/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/camera/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov1": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov2": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Indicator!rov3": {
+      "path": "/bluerov2/recording/active.data",
+      "style": "background",
+      "fallbackColor": "#6f6f6f",
+      "fallbackLabel": "not recording",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#e5484d",
+          "label": "● RECORDING"
+        }
+      ]
+    },
+    "CallService!rov4": {
+      "serviceName": "/bluerov2/recording/start",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Start recording",
+      "buttonTooltip": "Checks the streams, then records into the folder below",
+      "buttonColor": "#30a46c",
+      "editingMode": false
+    },
+    "CallService!rov5": {
+      "serviceName": "/bluerov2/recording/stop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Stop recording",
+      "buttonTooltip": "Stops and closes the bag cleanly",
+      "buttonColor": "#e5484d",
+      "editingMode": false
+    },
+    "Indicator!rov6": {
+      "path": "/bluerov2/dvl/health.status[0].level",
+      "style": "background",
+      "fallbackColor": "#e5484d",
+      "fallbackLabel": "DVL: BAD (or no health data)",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "0",
+          "color": "#30a46c",
+          "label": "DVL: GOOD"
+        },
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#f5a524",
+          "label": "DVL: CHECK"
+        }
+      ]
+    },
+    "DiagnosticSummary!rov7": {
+      "topicToRender": "/bluerov2/dvl/health",
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "sortByLevel": false
+    },
+    "Plot!rov8": {
+      "title": "DVL velocity [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.x",
+          "label": "forward",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.y",
+          "label": "left",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.z",
+          "label": "up",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov9": {
+      "title": "DVL altitude [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.altitude",
+          "label": "altitude",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov10": {
+      "title": "Attitude [deg]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.roll.@degrees",
+          "label": "roll",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.pitch.@degrees",
+          "label": "pitch",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.yaw.@degrees",
+          "label": "yaw",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Indicator!rov11": {
+      "path": "/bluerov2/recording/active.data",
+      "style": "background",
+      "fallbackColor": "#6f6f6f",
+      "fallbackLabel": "not recording",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#e5484d",
+          "label": "● RECORDING"
+        }
+      ]
+    },
+    "CallService!rov12": {
+      "serviceName": "/bluerov2/recording/start",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Start recording",
+      "buttonTooltip": "Checks the streams, then records into the folder below",
+      "buttonColor": "#30a46c",
+      "editingMode": false
+    },
+    "CallService!rov13": {
+      "serviceName": "/bluerov2/recording/stop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Stop recording",
+      "buttonTooltip": "Stops and closes the bag cleanly",
+      "buttonColor": "#e5484d",
+      "editingMode": false
+    },
+    "Publish!rov14": {
+      "topicName": "/bluerov2/recording/set_folder",
+      "datatype": "std_msgs/msg/String",
+      "buttonText": "Set folder",
+      "buttonTooltip": "Subfolder of the data directory (the project's data/ folder)",
+      "buttonColor": "#3e63dd",
+      "advancedView": true,
+      "value": "{\n  \"data\": \"pool_test\"\n}"
+    },
+    "RawMessages!rov15": {
+      "topicPath": "/bluerov2/recording/status.data",
+      "diffEnabled": false,
+      "expansion": "none"
+    },
+    "Indicator!rov16": {
+      "path": "/bluerov2/dvl/health.status[0].level",
+      "style": "background",
+      "fallbackColor": "#e5484d",
+      "fallbackLabel": "DVL: BAD (or no health data)",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "0",
+          "color": "#30a46c",
+          "label": "DVL: GOOD"
+        },
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#f5a524",
+          "label": "DVL: CHECK"
+        }
+      ]
+    },
+    "DiagnosticSummary!rov17": {
+      "topicToRender": "/bluerov2/dvl/health",
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "sortByLevel": false
+    },
+    "DiagnosticStatusPanel!rov18": {
+      "topicToRender": "/bluerov2/dvl/health",
+      "selectedHardwareId": "dvl_a50",
+      "selectedName": "DVL: overall",
+      "collapsedSections": []
+    },
+    "Plot!rov19": {
+      "title": "DVL velocity [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.x",
+          "label": "forward",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.y",
+          "label": "left",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.z",
+          "label": "up",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov20": {
+      "title": "DVL altitude [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.altitude",
+          "label": "altitude",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov21": {
+      "title": "DVL beam ranges [m] (similar on a flat floor)",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.beams[0].distance",
+          "label": "beam 0",
+          "color": "#f76b15",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[1].distance",
+          "label": "beam 1",
+          "color": "#8e4ec6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[2].distance",
+          "label": "beam 2",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[3].distance",
+          "label": "beam 3",
+          "color": "#d6409f",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Image!rov22": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/camera/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/camera/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov23": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov24": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov25": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/bottom_most/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/bottom_most/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov26": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/stereo_bottom/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/stereo_bottom/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "3D!rov27": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 30,
+        "thetaOffset": 45,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 5000
+      },
+      "followMode": "follow-none",
+      "followTf": "odom",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.3
+        }
+      },
+      "topics": {
+        "/bluerov2/dvl/altitude": {
+          "visible": true
+        },
+        "/bluerov2/dead_reckoning/path": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.05,
+          "gradient": [
+            "#f76b15",
+            "#f76b15"
+          ]
+        },
+        "/bluerov2/dead_reckoning/dvl_path": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.05,
+          "gradient": [
+            "#8e4ec6",
+            "#8e4ec6"
+          ]
+        },
+        "/bluerov2/dead_reckoning/odometry": {
+          "visible": true,
+          "type": "arrow",
+          "color": "#f76b15",
+          "arrowScale": [
+            1,
+            0.15,
+            0.15
+          ]
+        }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "size": 50,
+          "divisions": 50,
+          "frameId": "odom"
+        }
+      },
+      "publish": {
+        "type": "point"
+      }
+    },
+    "RosOut!rov28": {
+      "searchTerms": [],
+      "minLogLevel": 2
+    },
+    "Tab!rov29": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Overview",
+          "layout": {
+            "first": {
+              "first": "Image!rov0",
+              "second": {
+                "first": "Image!rov1",
+                "second": "Image!rov2",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 55
+            },
+            "second": {
+              "first": {
+                "first": "Indicator!rov3",
+                "second": {
+                  "first": "CallService!rov4",
+                  "second": "CallService!rov5",
+                  "direction": "row",
+                  "splitPercentage": 50
+                },
+                "direction": "row",
+                "splitPercentage": 40
+              },
+              "second": {
+                "first": {
+                  "first": "Indicator!rov6",
+                  "second": "DiagnosticSummary!rov7",
+                  "direction": "column",
+                  "splitPercentage": 15
+                },
+                "second": {
+                  "first": "Plot!rov8",
+                  "second": {
+                    "first": "Plot!rov9",
+                    "second": "Plot!rov10",
+                    "direction": "column",
+                    "splitPercentage": 50
+                  },
+                  "direction": "column",
+                  "splitPercentage": 33.333333333333336
+                },
+                "direction": "column",
+                "splitPercentage": 25
+              },
+              "direction": "column",
+              "splitPercentage": 12
+            },
+            "direction": "row",
+            "splitPercentage": 60
+          }
+        },
+        {
+          "title": "Record",
+          "layout": {
+            "first": {
+              "first": "Indicator!rov11",
+              "second": {
+                "first": "CallService!rov12",
+                "second": "CallService!rov13",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "row",
+              "splitPercentage": 40
+            },
+            "second": {
+              "first": "Publish!rov14",
+              "second": "RawMessages!rov15",
+              "direction": "row",
+              "splitPercentage": 45
+            },
+            "direction": "column",
+            "splitPercentage": 25
+          }
+        },
+        {
+          "title": "DVL",
+          "layout": {
+            "first": {
+              "first": {
+                "first": "Indicator!rov16",
+                "second": "DiagnosticSummary!rov17",
+                "direction": "column",
+                "splitPercentage": 12
+              },
+              "second": "DiagnosticStatusPanel!rov18",
+              "direction": "column",
+              "splitPercentage": 55
+            },
+            "second": {
+              "first": "Plot!rov19",
+              "second": {
+                "first": "Plot!rov20",
+                "second": "Plot!rov21",
+                "direction": "column",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 33.333333333333336
+            },
+            "direction": "row",
+            "splitPercentage": 45
+          }
+        },
+        {
+          "title": "Cameras",
+          "layout": {
+            "first": "Image!rov22",
+            "second": {
+              "first": {
+                "first": "Image!rov23",
+                "second": "Image!rov24",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "second": {
+                "first": "Image!rov25",
+                "second": "Image!rov26",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 50
+            },
+            "direction": "column",
+            "splitPercentage": 40
+          }
+        },
+        {
+          "title": "3D",
+          "layout": {
+            "first": "3D!rov27",
+            "second": "RosOut!rov28",
+            "direction": "row",
+            "splitPercentage": 70
+          }
+        }
+      ]
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Tab!rov29"
+}

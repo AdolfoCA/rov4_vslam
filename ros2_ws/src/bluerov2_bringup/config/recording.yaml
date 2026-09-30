@@ -1,0 +1,106 @@
+# What record.launch.py records - and so the Start button in Foxglove too.
+#
+# Current selection: raw IMU + DVL only, for offline processing. Cameras, TF,
+# logs and every derived topic (dead reckoning, health, duplicates) are off.
+#
+# Edit, save, and the next recording uses it: the workspace is built with
+# --symlink-install, so no rebuild is needed.
+#
+# Topics are grouped by sensor. A group is recorded when `enabled: true`; any group can
+# also be switched from the command line: record.launch.py <group>:=true|false.
+#   - A topic without a leading "/" lives under the namespace (/bluerov2/...).
+#   - `check` is the stream the recorder waits for before starting, with its minimum
+#     rate. If it is silent or slower, the recording is NOT started (see README §6).
+#     Leave it out for a group that should never block a recording.
+#   - Comment a topic out to leave it out.
+#
+# Sizes, for the disk: IMU + DVL are tiny. JPEG camera streams are a few MB/s each.
+# Raw (uncompressed) images are huge: nose 1080p ~187 MB/s (11 GB/min), each
+# multi-camera 960x540 ~39 MB/s.
+
+namespace: bluerov2
+
+output:
+  storage: mcap              # mcap | sqlite3
+  max_bag_duration: 60       # split the bag into files of this many seconds; 0 = one file
+
+groups:
+  imu:                                   # raw measurements of the Navigator
+    enabled: true
+    check: {topic: imu/data_raw, type: sensor_msgs/msg/Imu, min_hz: 50}
+    topics:
+      - imu/data_raw                     # raw gyro + accelerometer, 100 Hz
+      - imu/mag                          # raw magnetometer
+      - imu/pressure                     # in-hull barometer (not depth)
+      - imu/temperature
+      # - imu/data                       # ArduSub's attitude estimate (processed, not raw)
+
+  dvl:
+    enabled: true
+    check: {topic: dvl/report, type: bluerov2_msgs/msg/DVLReport, min_hz: 1}
+    topics:
+      # Everything the DVL measures, in one message: velocity + covariance + fom,
+      # validity, altitude, and per beam the along-beam velocity, range, RSSI, noise.
+      # (velocity is rotated FRD -> FLU by the driver; beam values are untouched.)
+      - dvl/report
+      # Derived from dvl/report, so not needed offline:
+      # - dvl/velocity                   # the velocity again, as a Twist
+      # - dvl/altitude                   # the altitude again, as a Range
+      # - dvl/health                     # dvl_health verdicts
+      # The DVL's own dead reckoning (its integrated position), not a measurement:
+      # - dvl/dead_reckoning
+      # - dvl/dead_reckoning_odometry
+
+  dead_reckoning:                        # IMU + DVL track of dead_reckoning_node
+    enabled: false
+    topics:
+      - dead_reckoning/odometry          # the paths are rebuilt from this offline
+
+  aux_left:                              # multi-camera top pair, left
+    enabled: false
+    check: {topic: multicam/aux_left/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
+    topics:
+      - multicam/aux_left/camera_info
+      - multicam/aux_left/image_raw/compressed   # JPEG
+      # - multicam/aux_left/image_raw            # raw, ~39 MB/s
+
+  aux_right:                             # multi-camera top pair, right
+    enabled: false
+    check: {topic: multicam/aux_right/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
+    topics:
+      - multicam/aux_right/camera_info
+      - multicam/aux_right/image_raw/compressed
+      # - multicam/aux_right/image_raw
+
+  stereo_bottom:                         # needs stereo_bottom:=true on the drivers too
+    enabled: false
+    check: {topic: multicam/stereo_bottom/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
+    topics:
+      - multicam/stereo_bottom/camera_info
+      - multicam/stereo_bottom/image_raw/compressed
+
+  bottom_most:                           # needs bottom_most:=true on the drivers too
+    enabled: false
+    check: {topic: multicam/bottom_most/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
+    topics:
+      - multicam/bottom_most/camera_info
+      - multicam/bottom_most/image_raw/compressed
+
+  nose_camera:                           # the BlueROV2's own camera
+    enabled: false
+    check: {topic: camera/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
+    topics:
+      - camera/camera_info
+      - camera/image_raw/compressed      # JPEG, ~15 MB/s
+      # - camera/image_raw               # raw 1080p, ~187 MB/s
+
+  tf:                                    # /tf_static = the (placeholder) extrinsics
+    enabled: false
+    topics: [/tf, /tf_static]
+
+  logs:
+    enabled: false
+    topics: [/rosout]
+
+# Anything else, recorded whenever this list is not empty.
+extra_topics: []

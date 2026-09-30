@@ -27,7 +27,6 @@ Launch arguments (all optional):
     camera:=true               nose camera driver (+ the relay for QGroundControl)
     aux_left:=true aux_right:=true stereo_bottom:=false bottom_most:=false
                                multi-camera nodes, and which streams are started
-    foxglove:=true             Foxglove bridge
     lights_test:=true          flash the lights to show the session is starting
     lights_test_power:=50      % during the test
     lights_test_seconds:=5
@@ -114,7 +113,6 @@ def _session(context, *_args, **_kwargs):
             get_package_share_directory("bluerov2_bringup"), "launch", "bluerov2.launch.py")),
         launch_arguments={
             "camera": _value(context, "camera"),
-            "foxglove": _value(context, "foxglove"),
             **{c: _value(context, c) for c in MULTICAM_CAMERAS},
         }.items(),
     )
@@ -174,7 +172,6 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("check_dvl", default_value="true"),
             DeclareLaunchArgument("check_nvidia", default_value="true"),
             DeclareLaunchArgument("camera", default_value="true"),
-            DeclareLaunchArgument("foxglove", default_value="true"),
         ]
         + [DeclareLaunchArgument(c, default_value=d) for c, d in MULTICAM_CAMERAS.items()]
         + [

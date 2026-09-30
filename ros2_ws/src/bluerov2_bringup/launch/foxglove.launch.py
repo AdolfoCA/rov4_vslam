@@ -2,10 +2,9 @@
 
     ros2 launch bluerov2_bringup foxglove.launch.py
 
-Use this when the drivers are already running - started by hand, by
-``bluerov2.launch.py foxglove:=false``, or in another container - and you just want a
-websocket to point Foxglove at. The main bringup launch starts the bridge itself by
-default, so you rarely need this one.
+This is the normal way to run Foxglove: in its own terminal, next to the drivers
+(session_start.launch.py / bluerov2.launch.py no longer start the bridge by default,
+because it logs a lot). Then import ros2_ws/src/foxglove/rov_layout.json in Foxglove.
 
 What the bridge is
 ------------------

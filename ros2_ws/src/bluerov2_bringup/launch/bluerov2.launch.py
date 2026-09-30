@@ -6,11 +6,13 @@ Launch arguments (all optional):
 
     imu:=true|false          start the MAVLink IMU driver
     dvl:=true|false          start the Water Linked DVL driver
+    dead_reckoning:=true|false  IMU + DVL dead reckoning: odom -> base_link and the
+                             dead_reckoning/path, dead_reckoning/dvl_path tracks
+    dvl_health:=true|false   DVL data checks on dvl/health (diagnostics, for Foxglove)
     camera:=true|false       start the nose camera driver, and the video relay that lets
                              QGroundControl receive the same stream (see below)
-    foxglove:=true|false     start foxglove_bridge (default true)
-    foxglove_port:=8765      websocket port for Foxglove clients
-    compressed_video:=auto   publish JPEG alongside raw video; see below
+    compressed_video:=true   publish nose-camera JPEG alongside raw video; see below
+    recording_control:=true  recording_manager: start/stop recordings from Foxglove
     namespace:=bluerov2      ROS namespace for every node
     params_file:=<path>      override the driver parameter file
     extrinsics_file:=<path>  override the sensor extrinsics file
@@ -32,13 +34,14 @@ on the camera system with its new_attach_streaming_consumer service).
 
 Video over Foxglove
 -------------------
-``compressed_video`` defaults to ``auto``, which turns JPEG republishing on exactly
-when the Foxglove bridge is running. The reason is bandwidth: raw ``bgr8`` at 1080p30
-is about 186 MB/s, which no websocket will carry, whereas the same frames as JPEG are
-roughly 5 MB/s. Foxglove's Image panel reads ``CompressedImage`` natively, so pointing
-it at ``camera/image_raw/compressed`` gives smooth video where the raw topic would stall
-the connection and eventually get the client dropped. Force it either way with
-``compressed_video:=true`` or ``compressed_video:=false``.
+Foxglove runs in its own terminal (``foxglove.launch.py``); this launch does not start
+it. ``compressed_video`` (default ``true``) makes the nose camera publish JPEG as well,
+for Foxglove and for recording; the multi-cameras always do. Why JPEG: bandwidth. Raw
+``bgr8`` at 1080p30 is about 186 MB/s, which no websocket will carry, whereas the same
+frames as JPEG are roughly 5 MB/s. Foxglove's Image panel reads ``CompressedImage``
+natively, so pointing it at ``camera/image_raw/compressed`` gives smooth video where
+the raw topic would stall the connection and eventually get the client dropped.
+``compressed_video:=false`` saves the encoding CPU when nobody needs the JPEG.
 
 ``rov_ip`` and ``dvl_ip`` exist so that a field session can be re-pointed without
 editing YAML: when set they override ``connection_url`` and the DVL ``host``. Leave
@@ -62,7 +65,6 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, GroupAction, O
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, PushRosNamespace
-from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 # Multi-camera system cameras, with whether each one's node starts by default. The top
@@ -91,15 +93,8 @@ def _driver_nodes(context, *_args, **_kwargs):
 
     dvl_overrides = {"host": dvl_ip} if dvl_ip else {}
 
-    # 'auto' means: compress when something is going to watch over a websocket.
-    foxglove_on = LaunchConfiguration("foxglove").perform(context).lower() in (
-        "true", "1", "yes", "on",
-    )
-    compressed = LaunchConfiguration("compressed_video").perform(context).strip().lower()
-    if compressed in ("auto", ""):
-        compress_video = foxglove_on
-    else:
-        compress_video = compressed in ("true", "1", "yes", "on")
+    compress_video = LaunchConfiguration("compressed_video").perform(context).strip().lower() \
+        in ("true", "1", "yes", "on")
     camera_overrides = {"publish_compressed": compress_video}
 
     common = ["--ros-args", "--log-level", log_level]
@@ -124,6 +119,38 @@ def _driver_nodes(context, *_args, **_kwargs):
             parameters=[params_file, dvl_overrides] if dvl_overrides else [params_file],
             arguments=common,
             condition=IfCondition(LaunchConfiguration("dvl")),
+            respawn=True,
+            respawn_delay=2.0,
+        ),
+        Node(
+            package="bluerov2_bringup",
+            executable="recording_manager.py",
+            name="recording_manager",
+            output="screen",
+            arguments=common,
+            condition=IfCondition(LaunchConfiguration("recording_control")),
+            # On shutdown it stops a running recording and waits for the bag to close.
+            sigterm_timeout="40",
+            sigkill_timeout="40",
+        ),
+        Node(
+            package="bluerov2_dvl",
+            executable="dvl_health",
+            name="dvl_health",
+            output="screen",
+            # Relative names, so they follow the launch namespace.
+            arguments=["--topic", "dvl/report", "--publish", "dvl/health", "--no-print"] + common,
+            condition=IfCondition(LaunchConfiguration("dvl_health")),
+            respawn=True,
+            respawn_delay=2.0,
+        ),
+        Node(
+            package="bluerov2_dvl",
+            executable="dead_reckoning_node",
+            name="dead_reckoning_node",
+            output="screen",
+            arguments=common,
+            condition=IfCondition(LaunchConfiguration("dead_reckoning")),
             respawn=True,
             respawn_delay=2.0,
         ),
@@ -190,10 +217,11 @@ def generate_launch_description() -> LaunchDescription:
     arguments = [
         DeclareLaunchArgument("imu", default_value="true"),
         DeclareLaunchArgument("dvl", default_value="true"),
+        DeclareLaunchArgument("dead_reckoning", default_value="true"),
+        DeclareLaunchArgument("dvl_health", default_value="true"),
         DeclareLaunchArgument("camera", default_value="true"),
-        DeclareLaunchArgument("foxglove", default_value="true"),
-        DeclareLaunchArgument("foxglove_port", default_value="8765"),
-        DeclareLaunchArgument("compressed_video", default_value="auto"),
+        DeclareLaunchArgument("compressed_video", default_value="true"),
+        DeclareLaunchArgument("recording_control", default_value="true"),
         DeclareLaunchArgument("namespace", default_value="bluerov2"),
         DeclareLaunchArgument("params_file", default_value=default_params),
         DeclareLaunchArgument("static_tf", default_value="true"),
@@ -218,26 +246,6 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(LaunchConfiguration("static_tf")),
     )
 
-    # The bridge stays outside the namespace as well. It serves the whole graph, not one
-    # subsystem, and a client connects to it by address and port rather than by node
-    # name - so namespacing it would only make it harder to find in `ros2 node list`.
-    foxglove = Node(
-        package="foxglove_bridge",
-        executable="foxglove_bridge",
-        name="foxglove_bridge",
-        output="screen",
-        parameters=[
-            PathJoinSubstitution([pkg_share, "config", "foxglove_bridge.yaml"]),
-            # A bare substitution resolves to a string, and foxglove_bridge declares
-            # 'port' as an integer - without the explicit type the node rejects it at
-            # startup with InvalidParameterTypeException.
-            {"port": ParameterValue(LaunchConfiguration("foxglove_port"), value_type=int)},
-        ],
-        condition=IfCondition(LaunchConfiguration("foxglove")),
-        respawn=True,
-        respawn_delay=2.0,
-    )
-
     # Only the drivers go inside the namespace. The static TF node stays at the root on
     # purpose: TF is a single global tree, and pushing it into a namespace would remap
     # /tf_static to /bluerov2/tf_static, quietly cutting every namespaced frame off from
@@ -252,6 +260,5 @@ def generate_launch_description() -> LaunchDescription:
                 ]
             ),
             static_tf,
-            foxglove,
         ]
     )
