@@ -84,6 +84,51 @@ RUN apt-get update -q \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# --- AQUA-SLAM dependencies ----------------------------------------------------------
+# Stereo + DVL + gyro SLAM (ros2_ws/src/aqua_slam, ported from the ROS 1 original).
+# g2o and DBoW2 are vendored in the package; everything else comes from here.
+#   OpenCV contrib   ximgproc, for the (optional) dense stereo mapper
+#   PCL, octomap     map point clouds and the octree
+#   Boost            log, serialization (Atlas save/load), filesystem, iostreams
+#   fmt, OpenSSL     fmt for Sophus, MD5 for the vocabulary checksum in System
+RUN apt-get update -q \
+    && apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    libopencv-dev \
+    libopencv-contrib-dev \
+    libpcl-dev \
+    ros-humble-pcl-conversions \
+    ros-humble-octomap \
+    ros-humble-octomap-msgs \
+    ros-humble-visualization-msgs \
+    ros-humble-std-srvs \
+    libboost-log-dev \
+    libboost-serialization-dev \
+    libboost-filesystem-dev \
+    libboost-iostreams-dev \
+    libboost-system-dev \
+    libfmt-dev \
+    libssl-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Sophus, header-only, the version AQUA-SLAM was developed against.
+RUN git clone --depth 1 --branch 1.22.10 https://github.com/strasdat/Sophus.git /tmp/Sophus \
+    && cmake -S /tmp/Sophus -B /tmp/Sophus/build \
+       -DCMAKE_BUILD_TYPE=Release -DBUILD_SOPHUS_TESTS=OFF -DBUILD_SOPHUS_EXAMPLES=OFF \
+    && cmake --install /tmp/Sophus/build \
+    && rm -rf /tmp/Sophus
+
+# ORB vocabulary (~145 MB unpacked). Kept in the image, not the repository; the
+# launch file looks for it here.
+RUN mkdir -p /opt/aqua_slam/Vocabulary \
+    && wget -q -O /tmp/ORBvoc.txt.tar.gz \
+       https://github.com/UZ-SLAMLab/ORB_SLAM3/raw/master/Vocabulary/ORBvoc.txt.tar.gz \
+    && tar -xzf /tmp/ORBvoc.txt.tar.gz -C /opt/aqua_slam/Vocabulary \
+    && rm /tmp/ORBvoc.txt.tar.gz \
+    && test -s /opt/aqua_slam/Vocabulary/ORBvoc.txt
+
 # --- Python dependencies -----------------------------------------------------------
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
@@ -123,8 +168,14 @@ RUN sudo apt-get update -q \
     && rosdep install --from-paths src --ignore-src -r -y \
     && sudo rm -rf /var/lib/apt/lists/*
 
+# AQUA-SLAM has translation units that need ~4 GB of RAM each to compile, so the
+# build runs one compiler job at a time (~11 min for AQUA-SLAM). Raise it on a machine
+# with more memory (budget 4 GB per job):
+#   docker compose build --build-arg BUILD_JOBS=4
+ARG BUILD_JOBS=1
 RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash \
-    && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
+    && MAKEFLAGS=-j$BUILD_JOBS colcon build --symlink-install \
+       --parallel-workers $BUILD_JOBS --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
 # --- Shell conveniences ----------------------------------------------------------------
 RUN printf '%s\n' \
@@ -139,7 +190,7 @@ RUN printf '%s\n' \
 RUN printf '%s\n' \
     "source /opt/ros/$ROS_DISTRO/setup.bash" \
     "[ -f /home/$USERNAME/ros2_ws/install/setup.bash ] && source /home/$USERNAME/ros2_ws/install/setup.bash" \
-    "alias build_ws='cd /home/$USERNAME/ros2_ws && colcon build --symlink-install && source install/setup.bash'" \
+    "alias build_ws='cd /home/$USERNAME/ros2_ws && MAKEFLAGS=-j$BUILD_JOBS colcon build --symlink-install --parallel-workers $BUILD_JOBS --cmake-args -DCMAKE_BUILD_TYPE=Release && source install/setup.bash'" \
     "alias start_mission='bash /home/$USERNAME/ros2_ws/src/start_mission.sh'" \
     "alias stop_mission='tmux kill-session -t mission 2>/dev/null && echo Mission stopped.'" \
     "alias multicam='ros2 run bluerov2_bringup multicam.py'" \

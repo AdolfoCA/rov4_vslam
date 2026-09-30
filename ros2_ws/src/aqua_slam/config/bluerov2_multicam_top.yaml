@@ -1,0 +1,265 @@
+%YAML:1.0
+#=============================================================================================
+# AQUA-SLAM settings for the BlueROV2 Heavy: Blue Atlas multi-camera TOP PAIR (stereo),
+# Water Linked DVL-A50, Navigator ICM-20602 IMU.
+#
+# Based on upstream data/underwater_orbslam3_blue_gx5_short.yaml (Tank dataset rig).
+# Every value is marked:
+#   [known]    taken from this vehicle (CHECKPOINT_2026-09-24.txt, bluerov2.yaml, drivers)
+#   [upstream] kept from the authors' tuned configuration
+#   [TODO]     PLACEHOLDER - must be measured / calibrated before results mean anything
+#
+# The two things that are NOT known yet (open tasks 7.2 and 7.3 in the checkpoint):
+#   1. stereo intrinsics of aux_left / aux_right (calibrate IN WATER), and
+#   2. where the top pair sits relative to the IMU and the DVL.
+# Both are set to physically plausible guesses below so the pipeline runs end to end.
+#=============================================================================================
+
+#--------------------------------------------------------------------------------------------
+# Camera: left = aux_left (cam1, robot's LEFT), right = aux_right (cam0, robot's RIGHT).
+# Per the lab manual, seen FROM THE FRONT aux_right is top-left and aux_left top-right,
+# so from the camera's own point of view aux_left is the left image.            [known]
+# Streams: H.265, 960x540, 30 fps measured, baseline 0.22 m.                       [known]
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# [TODO] intrinsics. Guess: ~74 deg horizontal FOV in air behind a flat port, times the
+# refractive index of water (1.33): fx ~ 640 px at 960 px width. Replace with the
+# stereo calibration (see LEFT.* / RIGHT.* below and the README).
+Camera.fx: 640.0
+Camera.fy: 640.0
+Camera.cx: 479.5
+Camera.cy: 269.5
+
+# Distortion is applied by rectification (LEFT.D / RIGHT.D), not here: ORB-SLAM3's
+# stereo pinhole mode expects rectified images.
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.bFishEye: 0
+
+Camera.width: 960                     # [known]
+Camera.height: 540                    # [known]
+
+# Camera frames per second                                                         [known]
+Camera.fps: 30
+
+# stereo baseline times fx: 0.22 m [known] x fx [TODO] = 0.22 x 640
+Camera.bf: 140.8
+
+# Color order of the images (0: BGR, 1: RGB). cv_bridge hands the node BGR.        [known]
+Camera.RGB: 0
+
+# Close/Far threshold. Baseline times: 35 x 0.22 m = 7.7 m.                     [upstream]
+ThDepth: 35.0
+ThFarDepth: 10.0
+
+# scale image by a factor
+ImageScale: 1.0
+
+#--------------------------------------------------------------------------------------------
+# Stereo rectification, used only when the node runs with rectify:=true.
+# Fill from a stereo calibration (e.g. ros2 run camera_calibration cameracalibrator
+# --approximate 0.05 with both multicam topics): K, D, R, P per camera as it reports them.
+# The values below describe ideal, already-aligned cameras (the same guess as above).
+#--------------------------------------------------------------------------------------------
+LEFT.height: 540
+LEFT.width: 960
+LEFT.D: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0.0, 0.0, 0.0, 0.0, 0.0 ]
+LEFT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 640.0, 0.0, 479.5, 0.0, 640.0, 269.5, 0.0, 0.0, 1.0 ]
+LEFT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ]
+LEFT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 640.0, 0.0, 479.5, 0.0, 0.0, 640.0, 269.5, 0.0, 0.0, 0.0, 1.0, 0.0 ]
+
+RIGHT.height: 540
+RIGHT.width: 960
+RIGHT.D: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0.0, 0.0, 0.0, 0.0, 0.0 ]
+RIGHT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 640.0, 0.0, 479.5, 0.0, 640.0, 269.5, 0.0, 0.0, 1.0 ]
+RIGHT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ]
+RIGHT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 640.0, 0.0, 479.5, -140.8, 0.0, 640.0, 269.5, 0.0, 0.0, 0.0, 1.0, 0.0 ]
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+# 1000 at upstream's 612x512; ~1.6x the pixels here.
+ORBextractor.nFeatures: 1200
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+# Low values on purpose: underwater images have little contrast.                [upstream]
+ORBextractor.iniThFAST: 15
+ORBextractor.minThFAST: 3
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters (unused: the Pangolin viewer is not built; visualise in Foxglove/rviz2)
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+#--------------------------------------------------------------------------------------------
+# Optimization Parameters                                                         [upstream]
+#--------------------------------------------------------------------------------------------
+Optimizer.visual_lamda: 1
+Optimizer.DVL_lamda: 1
+Optimizer.DVL_lamda_debug: 1
+Optimizer.DVL_func: 1
+Optimizer.KF_init_step: 0.25
+Optimizer.KF_num_for_init: 200
+# 1 = trust T_gyro_c / T_dvl_c from the start. The DVL-gyro initialisation refines them
+# either way and sets this to true afterwards.
+Optimizer.calibrated: 1
+Optimizer.mergingThreshold: 3
+Tracker.KFThresholdForMap: 15
+Tracker.ReLocalTime: 5
+
+#--------------------------------------------------------------------------------------------
+# DVL-A50 transducer geometry, in the DVL's own FRD frame: each beam is 22.5 deg off
+# vertical (alpha = 90 - 22.5 = 67.5 deg = 1.178 rad from horizontal), at 45 deg
+# azimuth offsets (beta = 0.785 rad). Same instrument as upstream.         [known/upstream]
+#--------------------------------------------------------------------------------------------
+alpha: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 1.1780, 1.1780, 1.1780, 1.1780]
+beta: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 0.7854, 0.7854, 0.7854, 0.7854]
+
+#--------------------------------------------------------------------------------------------
+# IMU: Navigator ICM-20602 through ArduSub RAW_IMU, /bluerov2/imu/data_raw.
+#--------------------------------------------------------------------------------------------
+# Unused by the DVL-stereo pipeline (kept: upstream parses it).
+Tbc: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ 0,  0,  1,  0.20,
+         -1,  0,  0,  0.11,
+          0, -1,  0,  0.0,
+          0,  0,  0,  1 ]
+# Noise figures: upstream's (inflated vs. datasheet, which is usual for MEMS). The
+# ICM-20602 datasheet gives ~7e-5 rad/s/sqrt(Hz) gyro and ~1e-3 m/s^2/sqrt(Hz) accel
+# noise density; replace with an Allan variance run on this unit.         [upstream/TODO]
+IMU.NoiseGyro: 1e-3 # rad/s^0.5
+IMU.NoiseAcc: 1e-2 # m/s^1.5
+IMU.GyroWalk: 1e-5 # rad/s^1.5
+IMU.AccWalk: 1e-4 # m/s^2.5
+IMU.Frequency: 100                    # [known] raw_imu_rate_hz in bluerov2.yaml
+
+VisualIntegration: 0
+
+# Topics are ROS parameters of the node (launch file), not read from here. Listed for
+# reference only:
+#   left  /bluerov2/multicam/aux_left/image_raw
+#   right /bluerov2/multicam/aux_right/image_raw
+#   imu   /bluerov2/imu/data_raw
+#   dvl   /bluerov2/dvl/report
+EnableLoopDetection: 1
+# Distance [m] / rotation [rad] the vehicle must travel before the DVL-gyro
+# initialisation (and extrinsic refinement) runs. Upstream: 3.0 for short tank
+# sequences, 10.0 calibrates better if the dive is long enough.               [upstream]
+IMUInitTranslation: 3.0
+IMUInitRotation: 1.0
+
+#--------------------------------------------------------------------------------------------
+# Extrinsics. Convention (as upstream): T_a_c maps a point from the LEFT CAMERA optical
+# frame (x right, y down, z forward) into frame a. Only the rotation of T_gyro_c is used.
+#
+# T_gyro_c: IMU frame = imu_link as published by bluerov2_imu, i.e. ROS FLU
+# (x forward, y left, z up), assumed aligned with base_link (extrinsics.yaml: identity).
+#   camera z (forward) -> IMU +x,  camera x (right) -> IMU -y,  camera y (down) -> IMU -z
+# Translation [TODO]: left camera ~0.20 m forward, 0.11 m left of the IMU (half the
+# baseline, pair assumed centred on the vehicle), same height.
+#--------------------------------------------------------------------------------------------
+T_gyro_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ 0,  0,  1,  0.20,
+         -1,  0,  0,  0.11,
+          0, -1,  0,  0.0,
+          0,  0,  0,  1 ]
+
+#--------------------------------------------------------------------------------------------
+# T_dvl_c: DVL frame = the A50's native FRD (x forward, y right, z down). The node turns
+# the driver's FLU velocity back into FRD (dvl_velocity_frame:=flu), so this matches the
+# beam model above. DVL assumed mounted looking down with no yaw offset.
+#   camera z (forward) -> DVL +x,  camera x (right) -> DVL +y,  camera y (down) -> DVL +z
+# Translation [TODO]: left camera in the DVL frame, from the extrinsics.yaml placeholders
+# (DVL 0.10 m below base_link) and the guess above: 0.20 m forward, 0.11 m left
+# (y = -0.11 in FRD), 0.10 m above (z = -0.10). This lever arm matters: measure it.
+#--------------------------------------------------------------------------------------------
+T_dvl_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ 0,  0,  1,  0.20,
+          1,  0,  0, -0.11,
+          0,  1,  0, -0.10,
+          0,  0,  0,  1 ]
+
+#--------------------------------------------------------------------------------------------
+# Dense stereo mapper (off). Needs the calibration above to be real.             [upstream]
+#--------------------------------------------------------------------------------------------
+DenseMapper:
+  enable: 0
+  P1: 200.0
+  P2: 400.0
+  correlation_window_size: 15
+  disp12MaxDiff: 0
+  disparity_range: 64
+  fullDP: false
+  min_disparity: 0
+  prefilter_cap: 31
+  prefilter_size: 9
+  speckle_range: 1
+  speckle_size: 1000
+  stereo_algorithm: 0
+  texture_threshold: 1000
+  uniqueness_ratio: 30
+  leaf_size: 0.05
+  mean_k: 5
+  std_thred: 0.1

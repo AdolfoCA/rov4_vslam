@@ -1,0 +1,168 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# Camera calibration and distortion parameters (OpenCV)
+Camera.fx: 655.0
+Camera.fy: 655.0
+Camera.cx: 306.0
+Camera.cy: 256.0
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.bFishEye: 0
+
+Camera.width: 612
+Camera.height: 512
+
+# Camera frames per second
+Camera.fps: 20
+
+# stereo baseline times fx
+Camera.bf: 78.89165891925023
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 0
+
+# Close/Far threshold. Baseline times.
+ThDepth: 35.0
+ThFarDepth: 10.0
+
+# scale image by a factor
+ImageScale: 1.0
+
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast
+ORBextractor.iniThFAST: 15
+ORBextractor.minThFAST: 3
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize:2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+# Optimization Parameters
+Optimizer.visual_lamda: 1
+Optimizer.DVL_lamda: 1
+Optimizer.DVL_lamda_debug: 1
+Optimizer.DVL_func: 1
+Optimizer.KF_init_step: 0.25
+Optimizer.KF_num_for_init: 200
+Optimizer.calibrated: 1 # 0 or 1
+Optimizer.mergingThreshold: 3
+Tracker.KFThresholdForMap: 15
+Tracker.ReLocalTime: 5
+
+
+alpha: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 1.1780, 1.1780, 1.1780, 1.1780]
+beta: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 0.7854, 0.7854, 0.7854, 0.7854]
+
+# IMU Parameters  -0.0539971  0.0286326
+Tbc: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ 0,  0,   1,   0.4, # real rov
+          -1,  0,   0,    0,
+          0,  -1,  0,    0.1,
+          0,  0,   0,    1 ]
+IMU.NoiseGyro: 1e-3 # 2.44e-4 #1e-3 # rad/s^0.5
+IMU.NoiseAcc: 1e-2 # 1.47e-3 #1e-2 # m/s^1.5
+IMU.GyroWalk: 1e-5 # rad/s^1.5
+IMU.AccWalk: 1e-4 # m/s^2.5
+IMU.Frequency: 200
+
+VisualIntegration: 0
+
+LeftImgTopic: "/camera/left/image_dehazed"
+RightImgTopic: "/camera/right/image_dehazed"
+#LeftImgTopic: "/camera_black/img_l"
+#RightImgTopic: "/camera_black/img_r"
+ImuTopic: "/imu/data"
+DvlTopic: "/bluerov2/DVL"
+EnableLoopDetection: 1
+IMUInitTranslation: 3.0 # 10.0 can calibrate well, but some sequence cannot reach 10
+IMUInitRotation: 1.0
+
+# IMU to orb
+# only use rotation
+T_gyro_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ -0.0165,   -0.0175,   -0.9997,   -0.211687435,
+          -0.0106,    0.9998,   -0.0173,    -0.097259169,
+          0.9998,    0.0103,   -0.0167,    -0.056238089,
+          0,  0,   0,    1 ]
+
+
+T_dvl_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ -0.0030,    0.0292,    0.9996,   0.132344740,
+          0.9995,    0.0328,    0.0021,    0.032085643,
+          -0.0327,    0.9990,   -0.0293,    -0.240100175,
+          0,  0,   0,    1 ]
+
+
+
+
+DenseMapper:
+  enable: 0
+  P1: 200.0
+  P2: 400.0
+  correlation_window_size: 15
+  disp12MaxDiff: 0
+  disparity_range: 64
+  fullDP: false
+  min_disparity: 0
+  prefilter_cap: 31
+  prefilter_size: 9
+  speckle_range: 1
+  speckle_size: 1000
+  stereo_algorithm: 0
+  texture_threshold: 1000
+  uniqueness_ratio: 30
+  leaf_size: 0.05
+  mean_k: 5
+  std_thred: 0.1

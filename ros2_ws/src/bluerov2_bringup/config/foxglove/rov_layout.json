@@ -1,0 +1,887 @@
+{
+  "configById": {
+    "Image!rov0": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/camera/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/camera/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov1": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov2": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Indicator!rov3": {
+      "path": "/bluerov2/dvl/report.velocity_valid",
+      "style": "background",
+      "fallbackColor": "#e5484d",
+      "fallbackLabel": "NO BOTTOM LOCK",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#30a46c",
+          "label": "DVL BOTTOM LOCK"
+        }
+      ]
+    },
+    "Plot!rov4": {
+      "title": "DVL bottom-track velocity [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.x",
+          "label": "surge",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.y",
+          "label": "sway",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.z",
+          "label": "heave",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov5": {
+      "title": "IMU angular velocity [rad/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.x",
+          "label": "roll rate",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.y",
+          "label": "pitch rate",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.z",
+          "label": "yaw rate",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov6": {
+      "title": "IMU specific force [m/s²]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.x",
+          "label": "ax",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.y",
+          "label": "ay",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.z",
+          "label": "az (≈ +9.81 at rest)",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov7": {
+      "title": "DVL altitude [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.altitude",
+          "label": "altitude",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov8": {
+      "title": "IMU angular velocity [rad/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.x",
+          "label": "roll rate",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.y",
+          "label": "pitch rate",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.angular_velocity.z",
+          "label": "yaw rate",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov9": {
+      "title": "IMU specific force [m/s²]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.x",
+          "label": "ax",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.y",
+          "label": "ay",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data_raw.linear_acceleration.z",
+          "label": "az (≈ +9.81 at rest)",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov10": {
+      "title": "IMU attitude [deg] (from imu/data orientation)",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.roll.@degrees",
+          "label": "roll",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.pitch.@degrees",
+          "label": "pitch",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/data.orientation.@rpy.yaw.@degrees",
+          "label": "yaw",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov11": {
+      "title": "Magnetic field [T]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/mag.magnetic_field.x",
+          "label": "x",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/mag.magnetic_field.y",
+          "label": "y",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/imu/mag.magnetic_field.z",
+          "label": "z",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov12": {
+      "title": "Hull pressure [Pa] (not depth)",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/pressure.fluid_pressure",
+          "label": "pressure",
+          "color": "#f76b15",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 120
+    },
+    "Plot!rov13": {
+      "title": "IMU temperature [°C]",
+      "paths": [
+        {
+          "value": "/bluerov2/imu/temperature.temperature",
+          "label": "temperature",
+          "color": "#8e4ec6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 120
+    },
+    "Indicator!rov14": {
+      "path": "/bluerov2/dvl/report.velocity_valid",
+      "style": "background",
+      "fallbackColor": "#e5484d",
+      "fallbackLabel": "NO BOTTOM LOCK",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#30a46c",
+          "label": "DVL BOTTOM LOCK"
+        }
+      ]
+    },
+    "Plot!rov15": {
+      "title": "DVL bottom-track velocity [m/s]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.x",
+          "label": "surge",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.y",
+          "label": "sway",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/velocity.twist.twist.linear.z",
+          "label": "heave",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "Plot!rov16": {
+      "title": "DVL altitude [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.altitude",
+          "label": "altitude",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov17": {
+      "title": "DVL figure of merit [m/s] (lower is better)",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.fom",
+          "label": "FOM",
+          "color": "#f76b15",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov18": {
+      "title": "Beam range [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.beams[0].distance",
+          "label": "beam 0",
+          "color": "#f76b15",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[1].distance",
+          "label": "beam 1",
+          "color": "#8e4ec6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[2].distance",
+          "label": "beam 2",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[3].distance",
+          "label": "beam 3",
+          "color": "#d6409f",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov19": {
+      "title": "Beam RSSI [dBm]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/report.beams[0].rssi",
+          "label": "beam 0",
+          "color": "#f76b15",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[1].rssi",
+          "label": "beam 1",
+          "color": "#8e4ec6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[2].rssi",
+          "label": "beam 2",
+          "color": "#12a594",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/report.beams[3].rssi",
+          "label": "beam 3",
+          "color": "#d6409f",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 60
+    },
+    "Plot!rov20": {
+      "title": "DVL dead reckoning track, x vs y [m]",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/dead_reckoning.y",
+          "label": "track",
+          "color": "#8e4ec6",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": false,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": false,
+      "xAxisVal": "custom",
+      "xAxisPath": {
+        "value": "/bluerov2/dvl/dead_reckoning.x",
+        "enabled": true
+      }
+    },
+    "Plot!rov21": {
+      "title": "DVL dead reckoning position [m] (drifts; reference only)",
+      "paths": [
+        {
+          "value": "/bluerov2/dvl/dead_reckoning.x",
+          "label": "x",
+          "color": "#e5484d",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/dead_reckoning.y",
+          "label": "y",
+          "color": "#30a46c",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/bluerov2/dvl/dead_reckoning.z",
+          "label": "z",
+          "color": "#3e63dd",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        }
+      ],
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "followingViewWidth": 30
+    },
+    "RawMessages!rov22": {
+      "topicPath": "/bluerov2/dvl/report",
+      "diffEnabled": false,
+      "expansion": "none"
+    },
+    "Image!rov23": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/camera/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/camera/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov24": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov25": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov26": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/bottom_most/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/bottom_most/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov27": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/stereo_bottom/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/stereo_bottom/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov28": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov29": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov30": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/bottom_most/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/bottom_most/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!rov31": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/stereo_bottom/image_raw/compressed",
+        "calibrationTopic": "/bluerov2/multicam/stereo_bottom/camera_info",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "3D!rov32": {
+      "cameraState": {
+        "distance": 3,
+        "perspective": true,
+        "phi": 60,
+        "thetaOffset": 45,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_link",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.3
+        }
+      },
+      "topics": {
+        "/bluerov2/dvl/altitude": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 20,
+          "frameId": "base_link"
+        }
+      },
+      "publish": {
+        "type": "point"
+      }
+    },
+    "RosOut!rov33": {
+      "searchTerms": [],
+      "minLogLevel": 2
+    },
+    "Tab!rov34": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Overview",
+          "layout": {
+            "first": {
+              "first": "Image!rov0",
+              "second": {
+                "first": "Image!rov1",
+                "second": "Image!rov2",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 60
+            },
+            "second": {
+              "first": {
+                "first": "Indicator!rov3",
+                "second": "Plot!rov4",
+                "direction": "column",
+                "splitPercentage": 12
+              },
+              "second": {
+                "first": "Plot!rov5",
+                "second": {
+                  "first": "Plot!rov6",
+                  "second": "Plot!rov7",
+                  "direction": "column",
+                  "splitPercentage": 50
+                },
+                "direction": "column",
+                "splitPercentage": 33.333333333333336
+              },
+              "direction": "column",
+              "splitPercentage": 25
+            },
+            "direction": "row",
+            "splitPercentage": 58
+          }
+        },
+        {
+          "title": "IMU",
+          "layout": {
+            "first": {
+              "first": "Plot!rov8",
+              "second": {
+                "first": "Plot!rov9",
+                "second": "Plot!rov10",
+                "direction": "column",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 33.333333333333336
+            },
+            "second": {
+              "first": "Plot!rov11",
+              "second": {
+                "first": "Plot!rov12",
+                "second": "Plot!rov13",
+                "direction": "column",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 33.333333333333336
+            },
+            "direction": "row",
+            "splitPercentage": 55
+          }
+        },
+        {
+          "title": "DVL",
+          "layout": {
+            "first": {
+              "first": {
+                "first": "Indicator!rov14",
+                "second": "Plot!rov15",
+                "direction": "column",
+                "splitPercentage": 15
+              },
+              "second": {
+                "first": {
+                  "first": "Plot!rov16",
+                  "second": "Plot!rov17",
+                  "direction": "row",
+                  "splitPercentage": 50
+                },
+                "second": {
+                  "first": "Plot!rov18",
+                  "second": "Plot!rov19",
+                  "direction": "column",
+                  "splitPercentage": 50
+                },
+                "direction": "column",
+                "splitPercentage": 33.333333333333336
+              },
+              "direction": "column",
+              "splitPercentage": 25
+            },
+            "second": {
+              "first": {
+                "first": "Plot!rov20",
+                "second": "Plot!rov21",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "second": "RawMessages!rov22",
+              "direction": "column",
+              "splitPercentage": 50
+            },
+            "direction": "row",
+            "splitPercentage": 58
+          }
+        },
+        {
+          "title": "Cameras",
+          "layout": {
+            "first": "Image!rov23",
+            "second": {
+              "first": {
+                "first": "Image!rov24",
+                "second": "Image!rov25",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "second": {
+                "first": "Image!rov26",
+                "second": "Image!rov27",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 50
+            },
+            "direction": "column",
+            "splitPercentage": 40
+          }
+        },
+        {
+          "title": "Stereo",
+          "layout": {
+            "first": {
+              "first": "Image!rov28",
+              "second": "Image!rov29",
+              "direction": "row",
+              "splitPercentage": 50
+            },
+            "second": {
+              "first": "Image!rov30",
+              "second": "Image!rov31",
+              "direction": "row",
+              "splitPercentage": 50
+            },
+            "direction": "column",
+            "splitPercentage": 50
+          }
+        },
+        {
+          "title": "3D + log",
+          "layout": {
+            "first": "3D!rov32",
+            "second": "RosOut!rov33",
+            "direction": "row",
+            "splitPercentage": 60
+          }
+        }
+      ]
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Tab!rov34"
+}
