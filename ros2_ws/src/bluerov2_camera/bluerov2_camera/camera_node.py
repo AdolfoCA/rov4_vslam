@@ -11,7 +11,14 @@ Nothing on this end needs to request the stream; the packets simply arrive.
 So the driver is a GStreamer pipeline whose sink is an ``appsink`` we pull frames from:
 
     udpsrc -> rtpjitterbuffer -> rtph264depay -> h264parse -> avdec_h264
-           -> videoconvert -> BGR appsink
+           -> queue -> I420 appsink           (then I420 -> BGR in OpenCV)
+
+The decoder's own I420 output goes to the appsink, and the conversion to BGR is done
+with OpenCV in the frame callback. GStreamer's videoconvert does the same conversion on
+one core: measured 2026-10-08 it caps 1080p at ~24 fps by itself, and with the rest of
+the callback on the same thread the nose camera fell to ~8 fps in Foxglove. OpenCV
+converts a 1080p frame in under 1 ms. The queue puts the decoder on its own thread, so
+decoding the next frame overlaps publishing this one.
 
 ``rtpjitterbuffer`` is what makes the difference between usable and unwatchable video
 on a tether: UDP packets arrive out of order and the decoder needs them in sequence.
@@ -80,8 +87,10 @@ DEFAULT_PIPELINE = (
     "! rtp{codec}depay "
     "! {codec}parse "
     "! avdec_{codec} output-corrupt=false "
-    "! videoconvert "
-    "! video/x-raw,format=BGR "
+    "! queue max-size-buffers=2 leaky=downstream "
+    # A no-op when the decoder already gives {format} (I420 for 8-bit 4:2:0 streams).
+    "! videoconvert n-threads=4 "
+    "! video/x-raw,format={format} "
     "! appsink name=ros_sink emit-signals=true sync=false max-buffers=2 drop=true"
 )
 
@@ -197,6 +206,8 @@ class BlueRov2CameraNode(Node):
             latency_ms=int(self.get_parameter("jitter_buffer_ms").value),
             codec=codec,
             encoding=codec.upper(),
+            # Without OpenCV the node cannot convert I420 itself.
+            format="I420" if cv2 is not None else "BGR",
         )
 
     def _start_pipeline(self) -> None:
@@ -249,15 +260,32 @@ class BlueRov2CameraNode(Node):
         caps = sample.get_caps().get_structure(0)
         width = caps.get_value("width")
         height = caps.get_value("height")
+        pixel_format = caps.get_value("format")
 
         success, mapped = buffer.map(Gst.MapFlags.READ)
         if not success:
             return Gst.FlowReturn.ERROR
         try:
             # np.frombuffer gives a read-only view into GStreamer-owned memory that is
-            # unmapped as soon as this callback returns, so copy before publishing.
-            frame = np.frombuffer(mapped.data, dtype=np.uint8)
-            frame = frame.reshape((height, width, 3)).copy()
+            # unmapped as soon as this callback returns, so copy (or convert) before
+            # publishing.
+            data = np.frombuffer(mapped.data, dtype=np.uint8)
+            if pixel_format == "I420":
+                # OpenCV wants the three planes packed with no row padding, which is
+                # GStreamer's layout when the width is a multiple of 8 and the height
+                # is even (1920x1080, 960x540, ...).
+                if width % 8 or height % 2 or data.size != width * height * 3 // 2:
+                    self.get_logger().error(
+                        f"I420 frame {width}x{height} ({data.size} bytes) has padded "
+                        "rows; set pipeline_override with format=BGR for this stream",
+                        throttle_duration_sec=30.0,
+                    )
+                    return Gst.FlowReturn.OK
+                frame = cv2.cvtColor(
+                    data.reshape((height * 3 // 2, width)), cv2.COLOR_YUV2BGR_I420
+                )
+            else:
+                frame = data.reshape((height, width, 3)).copy()
         finally:
             buffer.unmap(mapped)
 
