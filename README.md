@@ -590,6 +590,12 @@ validation.
 
 ## 13. Troubleshooting
 
+**One sensor did not start?** In a container shell, `help_me` prints for each sensor
+how to check it, what to do when its node runs but publishes nothing, and how to start
+it on its own: `rov_start <sensor>` (`imu`, `dvl`, `camera`, `aux_left`, `aux_right`,
+`stereo_bottom`, `bottom_most`, `tf`, `recording`) runs `bluerov2.launch.py` with only
+that sensor on, and refuses if its node is already running.
+
 | Symptom | Where to look |
 |---|---|
 | `PREFLIGHT FAILED … not ready: <system>` | that system did not answer within `wait_timeout`: power, cables, and the tether addresses (section 3); raise `wait_timeout` if it is just slow |
