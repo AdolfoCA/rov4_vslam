@@ -9,6 +9,8 @@ Launch arguments (all optional):
     dead_reckoning:=true|false  IMU + DVL dead reckoning: odom -> base_link and the
                              dead_reckoning/path, dead_reckoning/dvl_path tracks
     dvl_health:=true|false   DVL data checks on dvl/health (diagnostics, for Foxglove)
+    dvl_calibration:=true|false  dvl/calibration/start service: runs dvl_calibrate, for
+                             the Calibrate button in Foxglove's DVL tab
     camera:=true|false       start the nose camera driver, and the video relay that lets
                              QGroundControl receive the same stream (see below)
     compressed_video:=true   publish nose-camera JPEG alongside raw video; see below
@@ -146,6 +148,14 @@ def _driver_nodes(context, *_args, **_kwargs):
         ),
         Node(
             package="bluerov2_dvl",
+            executable="dvl_calibration",
+            name="dvl_calibration",
+            output="screen",
+            arguments=common,
+            condition=IfCondition(LaunchConfiguration("dvl_calibration")),
+        ),
+        Node(
+            package="bluerov2_dvl",
             executable="dead_reckoning_node",
             name="dead_reckoning_node",
             output="screen",
@@ -219,6 +229,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("dvl", default_value="true"),
         DeclareLaunchArgument("dead_reckoning", default_value="true"),
         DeclareLaunchArgument("dvl_health", default_value="true"),
+        DeclareLaunchArgument("dvl_calibration", default_value="true"),
         DeclareLaunchArgument("camera", default_value="true"),
         DeclareLaunchArgument("compressed_video", default_value="true"),
         DeclareLaunchArgument("recording_control", default_value="true"),

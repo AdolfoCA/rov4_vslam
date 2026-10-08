@@ -104,6 +104,11 @@ ros2 run bluerov2_dvl dvl_calibrate --water-temp 10 --salinity 35  # sea water
 ros2 run bluerov2_dvl dvl_calibrate --dry-run                      # check only
 ```
 
+Or from Foxglove, **DVL tab**: put `"12 0"` (temperature °C, salinity ppt) in *Set
+water*, then **Calibrate DVL**. The button calls `/bluerov2/dvl/calibration/start`
+(std_srvs/Trigger, node `dvl_calibration`, started by `bluerov2.launch.py`), which runs
+the same `dvl_calibrate`; progress and result are on `dvl/calibration/status`.
+
 It (1) reads the DVL config, (2) checks for 10 s that the vehicle is still — IMU
 angular rate < 1 °/s and, if the DVL has bottom lock, DVL speed < 0.05 m/s — and aborts
 if not, (3) sets the DVL sound speed from temperature and salinity (Medwin; a wrong sound

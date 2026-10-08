@@ -132,6 +132,45 @@ const dvlCheckDetail = () =>
     collapsedSections: [],
   });
 
+// ---------------------------------------------------------------- Calibration
+// dvl_calibration (started by bluerov2.launch.py) runs dvl_calibrate: stillness check,
+// sound speed from the water setting, gyro calibration, dead-reckoning reset.
+const CAL = t("dvl/calibration");
+const calActive = () =>
+  add("Indicator", {
+    path: `${CAL}/active.data`,
+    style: "background",
+    fallbackColor: "#6f6f6f",
+    fallbackLabel: "DVL calibration: idle",
+    rules: [{ operator: "=", rawValue: "true", color: "#f5a524", label: "CALIBRATING - keep still" }],
+  });
+const calButton = () =>
+  add("CallService", {
+    serviceName: `${CAL}/start`,
+    requestPayload: "{}",
+    layout: "vertical",
+    buttonText: "Calibrate DVL",
+    buttonTooltip: "At the surface, disarmed, still. ~20 s. Aborts (changes nothing) if the vehicle moves",
+    buttonColor: "#3e63dd",
+    editingMode: false,
+  });
+const calWater = () =>
+  add("Publish", {
+    topicName: `${CAL}/set_water`,
+    datatype: "std_msgs/msg/String",
+    buttonText: "Set water",
+    buttonTooltip: "\"<temp degC> <salinity ppt>\": \"12 0\" fresh, \"10 35\" sea; \"\" = keep sound speed",
+    buttonColor: "#3e63dd",
+    advancedView: true,
+    value: JSON.stringify({ data: "12 0" }, null, 2),
+  });
+const calStatus = () => raw(`${CAL}/status.data`);
+const calBlock = () =>
+  split("column",
+    split("row", calActive(), calButton(), 55),
+    split("row", calWater(), calStatus(), 45),
+    30);
+
 // ---------------------------------------------------------------- Plots
 const dvlVel = () =>
   xyzPlot("DVL velocity [m/s]", t("dvl/velocity.twist.twist.linear"),
@@ -257,13 +296,17 @@ const tabs = [
       25),
   },
   {
-    // Is the DVL data good? Checklist on the left, the raw signals on the right.
+    // Is the DVL data good? Calibration and checklist on the left, the raw signals on
+    // the right.
     title: "DVL",
     layout: split("row",
       split("column",
-        split("column", dvlOverall(), dvlChecks(), 12),
-        dvlCheckDetail(),
-        55),
+        calBlock(),
+        split("column",
+          split("column", dvlOverall(), dvlChecks(), 12),
+          dvlCheckDetail(),
+          55),
+        35),
       even("column", [dvlVel(), dvlAltitude(), dvlBeamRanges()]),
       45),
   },

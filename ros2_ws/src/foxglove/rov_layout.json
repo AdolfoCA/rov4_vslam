@@ -224,6 +224,43 @@
       "expansion": "none"
     },
     "Indicator!rov16": {
+      "path": "/bluerov2/dvl/calibration/active.data",
+      "style": "background",
+      "fallbackColor": "#6f6f6f",
+      "fallbackLabel": "DVL calibration: idle",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "true",
+          "color": "#f5a524",
+          "label": "CALIBRATING - keep still"
+        }
+      ]
+    },
+    "CallService!rov17": {
+      "serviceName": "/bluerov2/dvl/calibration/start",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Calibrate DVL",
+      "buttonTooltip": "At the surface, disarmed, still. ~20 s. Aborts (changes nothing) if the vehicle moves",
+      "buttonColor": "#3e63dd",
+      "editingMode": false
+    },
+    "Publish!rov18": {
+      "topicName": "/bluerov2/dvl/calibration/set_water",
+      "datatype": "std_msgs/msg/String",
+      "buttonText": "Set water",
+      "buttonTooltip": "\"<temp degC> <salinity ppt>\": \"12 0\" fresh, \"10 35\" sea; \"\" = keep sound speed",
+      "buttonColor": "#3e63dd",
+      "advancedView": true,
+      "value": "{\n  \"data\": \"12 0\"\n}"
+    },
+    "RawMessages!rov19": {
+      "topicPath": "/bluerov2/dvl/calibration/status.data",
+      "diffEnabled": false,
+      "expansion": "none"
+    },
+    "Indicator!rov20": {
       "path": "/bluerov2/dvl/health.status[0].level",
       "style": "background",
       "fallbackColor": "#e5484d",
@@ -243,20 +280,20 @@
         }
       ]
     },
-    "DiagnosticSummary!rov17": {
+    "DiagnosticSummary!rov21": {
       "topicToRender": "/bluerov2/dvl/health",
       "minLevel": 0,
       "pinnedIds": [],
       "hardwareIdFilter": "",
       "sortByLevel": false
     },
-    "DiagnosticStatusPanel!rov18": {
+    "DiagnosticStatusPanel!rov22": {
       "topicToRender": "/bluerov2/dvl/health",
       "selectedHardwareId": "dvl_a50",
       "selectedName": "DVL: overall",
       "collapsedSections": []
     },
-    "Plot!rov19": {
+    "Plot!rov23": {
       "title": "DVL velocity [m/s]",
       "paths": [
         {
@@ -289,7 +326,7 @@
       "xAxisVal": "timestamp",
       "followingViewWidth": 30
     },
-    "Plot!rov20": {
+    "Plot!rov24": {
       "title": "DVL altitude [m]",
       "paths": [
         {
@@ -308,7 +345,7 @@
       "xAxisVal": "timestamp",
       "followingViewWidth": 60
     },
-    "Plot!rov21": {
+    "Plot!rov25": {
       "title": "DVL beam ranges [m] (similar on a flat floor)",
       "paths": [
         {
@@ -348,7 +385,7 @@
       "xAxisVal": "timestamp",
       "followingViewWidth": 60
     },
-    "Image!rov22": {
+    "Image!rov26": {
       "imageMode": {
         "imageTopic": "/bluerov2/camera/image_raw/compressed",
         "calibrationTopic": "/bluerov2/camera/camera_info",
@@ -359,7 +396,7 @@
       },
       "transformMarkers": false
     },
-    "Image!rov23": {
+    "Image!rov27": {
       "imageMode": {
         "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
         "calibrationTopic": "/bluerov2/multicam/aux_right/camera_info",
@@ -370,7 +407,7 @@
       },
       "transformMarkers": false
     },
-    "Image!rov24": {
+    "Image!rov28": {
       "imageMode": {
         "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
         "calibrationTopic": "/bluerov2/multicam/aux_left/camera_info",
@@ -381,7 +418,7 @@
       },
       "transformMarkers": false
     },
-    "Image!rov25": {
+    "Image!rov29": {
       "imageMode": {
         "imageTopic": "/bluerov2/multicam/bottom_most/image_raw/compressed",
         "calibrationTopic": "/bluerov2/multicam/bottom_most/camera_info",
@@ -392,7 +429,7 @@
       },
       "transformMarkers": false
     },
-    "Image!rov26": {
+    "Image!rov30": {
       "imageMode": {
         "imageTopic": "/bluerov2/multicam/stereo_bottom/image_raw/compressed",
         "calibrationTopic": "/bluerov2/multicam/stereo_bottom/camera_info",
@@ -403,7 +440,7 @@
       },
       "transformMarkers": false
     },
-    "3D!rov27": {
+    "3D!rov31": {
       "cameraState": {
         "distance": 20,
         "perspective": true,
@@ -477,11 +514,11 @@
         "type": "point"
       }
     },
-    "RosOut!rov28": {
+    "RosOut!rov32": {
       "searchTerms": [],
       "minLogLevel": 2
     },
-    "Tab!rov29": {
+    "Tab!rov33": {
       "activeTabIdx": 0,
       "tabs": [
         {
@@ -567,20 +604,40 @@
           "layout": {
             "first": {
               "first": {
-                "first": "Indicator!rov16",
-                "second": "DiagnosticSummary!rov17",
+                "first": {
+                  "first": "Indicator!rov16",
+                  "second": "CallService!rov17",
+                  "direction": "row",
+                  "splitPercentage": 55
+                },
+                "second": {
+                  "first": "Publish!rov18",
+                  "second": "RawMessages!rov19",
+                  "direction": "row",
+                  "splitPercentage": 45
+                },
                 "direction": "column",
-                "splitPercentage": 12
+                "splitPercentage": 30
               },
-              "second": "DiagnosticStatusPanel!rov18",
+              "second": {
+                "first": {
+                  "first": "Indicator!rov20",
+                  "second": "DiagnosticSummary!rov21",
+                  "direction": "column",
+                  "splitPercentage": 12
+                },
+                "second": "DiagnosticStatusPanel!rov22",
+                "direction": "column",
+                "splitPercentage": 55
+              },
               "direction": "column",
-              "splitPercentage": 55
+              "splitPercentage": 35
             },
             "second": {
-              "first": "Plot!rov19",
+              "first": "Plot!rov23",
               "second": {
-                "first": "Plot!rov20",
-                "second": "Plot!rov21",
+                "first": "Plot!rov24",
+                "second": "Plot!rov25",
                 "direction": "column",
                 "splitPercentage": 50
               },
@@ -594,17 +651,17 @@
         {
           "title": "Cameras",
           "layout": {
-            "first": "Image!rov22",
+            "first": "Image!rov26",
             "second": {
               "first": {
-                "first": "Image!rov23",
-                "second": "Image!rov24",
+                "first": "Image!rov27",
+                "second": "Image!rov28",
                 "direction": "row",
                 "splitPercentage": 50
               },
               "second": {
-                "first": "Image!rov25",
-                "second": "Image!rov26",
+                "first": "Image!rov29",
+                "second": "Image!rov30",
                 "direction": "row",
                 "splitPercentage": 50
               },
@@ -618,8 +675,8 @@
         {
           "title": "3D",
           "layout": {
-            "first": "3D!rov27",
-            "second": "RosOut!rov28",
+            "first": "3D!rov31",
+            "second": "RosOut!rov32",
             "direction": "row",
             "splitPercentage": 70
           }
@@ -632,5 +689,5 @@
   "playbackConfig": {
     "speed": 1
   },
-  "layout": "Tab!rov29"
+  "layout": "Tab!rov33"
 }

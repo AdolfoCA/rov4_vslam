@@ -23,6 +23,7 @@ setup(
             "dvl_calibrate = bluerov2_dvl.calibrate:main",
             "dead_reckoning_node = bluerov2_dvl.dead_reckoning_node:main",
             "dvl_health = bluerov2_dvl.health_node:main",
+            "dvl_calibration = bluerov2_dvl.calibration_node:main",
         ],
     },
 )

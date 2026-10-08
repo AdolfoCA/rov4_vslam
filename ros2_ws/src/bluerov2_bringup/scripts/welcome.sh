@@ -154,13 +154,13 @@ rov_start() {
     local sensor=$1 node
     # Every switch of bluerov2.launch.py that defaults to true, set false; then the
     # chosen one(s) back on.
-    local off=(imu:=false dvl:=false dead_reckoning:=false dvl_health:=false
+    local off=(imu:=false dvl:=false dead_reckoning:=false dvl_health:=false dvl_calibration:=false
                camera:=false recording_control:=false static_tf:=false
                aux_left:=false aux_right:=false stereo_bottom:=false bottom_most:=false)
     local on
     case $sensor in
         imu)        node=imu_node;           on=(imu:=true) ;;
-        dvl)        node=dvl_node;           on=(dvl:=true dvl_health:=true) ;;
+        dvl)        node=dvl_node;           on=(dvl:=true dvl_health:=true dvl_calibration:=true) ;;
         camera)     node=camera_node;        on=(camera:=true) ;;
         aux_left|aux_right|stereo_bottom|bottom_most)
                     node=$sensor;            on=("$sensor:=true") ;;
