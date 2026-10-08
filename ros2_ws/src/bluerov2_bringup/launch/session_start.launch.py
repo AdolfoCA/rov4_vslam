@@ -12,7 +12,8 @@ Sequence - each step must succeed before the next one starts:
     1. preflight   wait (up to wait_timeout) until Pi, IMU heartbeat, DVL and the
                    multi-camera computer (ping + camera software) are all reachable
     2. drivers     bluerov2.launch.py, with the camera switches below
-    3. cameras     multicam start <enabled multi-cameras>
+    3. cameras     multicam start <enabled multi-cameras>; fails unless the camera
+                   system then lists every one of them as streaming
     4. lights      lights_test_power % for lights_test_seconds, then `lights` (default 0)
     5. check       check_streams.py on every started sensor
     6.             SESSION READY

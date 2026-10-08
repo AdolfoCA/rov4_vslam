@@ -2,7 +2,8 @@
 """Start/stop the multi-camera streams and set its lights, via the camera system's services.
 
     multicam status                        # cameras available/streaming/recording, lights
-    multicam start [CAMERA ...|all]        # default: aux_left aux_right
+    multicam start [CAMERA ...|all]        # default: aux_left aux_right; fails unless
+                                           # every one is then listed as streaming
     multicam stop  [CAMERA ...|all]        # default: aux_left aux_right;
                                            # all = every camera that is streaming
     multicam lights BRIGHTNESS [--channel N]   # 0-100, channel 1-3 (default 3)
@@ -32,7 +33,9 @@ start   /ba/camera_feed_manager/new_attach_streaming_consumer, once per camera:
         {camera_device_path: /dev/video_<camera>, ip_address: <topside>, port: <port>}
         The camera system then sends H.265 RTP to <topside>:<port>. Ports come from
         bluerov2_bringup/config/bluerov2.yaml (udp_port of each camera), so they match
-        the receiving camera nodes.
+        the receiving camera nodes. An attach can answer succeeded=True and the camera
+        still not stream, so start then polls camera_status (up to --verify-timeout)
+        and exits 1 unless every requested camera is listed as streaming.
 stop    /ba/camera_feed_manager/detach_streaming_consumer {camera_device_path}
 status  /ba/camera_feed_manager/camera_status, and the lifecycle state of
         /ba/light_controller
@@ -158,8 +161,9 @@ def _attach_or_detach(caller, args, start: bool) -> int:
     from ba_msgs.srv import DetachConsumer, NewAttachStreamingConsumer
 
     ports = _ports()
+    cameras = _cameras(args.cameras)
     failed = 0
-    for camera in _cameras(args.cameras):
+    for camera in cameras:
         device = f"/dev/video_{camera}"
         if start:
             request = NewAttachStreamingConsumer.Request(
@@ -174,9 +178,33 @@ def _attach_or_detach(caller, args, start: bool) -> int:
         ok = err is None and result.succeeded
         failed += 0 if ok else 1
         print(f"{what}  {'OK' if ok else 'FAILED'}{'  - ' + err if err else ''}")
+    if start and not _wait_streaming(caller, cameras, args.verify_timeout):
+        failed += 1
     print("")
     cmd_status(caller, args)
     return 1 if failed else 0
+
+
+def _wait_streaming(caller, cameras, timeout: float) -> bool:
+    """True once every camera is in the camera system's streaming list.
+
+    An attach that answers succeeded=True does not guarantee the camera is streaming,
+    so this asks camera_status until all are listed or `timeout` seconds pass.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        streaming = _streaming_cameras(caller)
+        missing = [c for c in cameras if streaming is None or c not in streaming]
+        if not missing:
+            print(f"streaming check  OK  ({', '.join(cameras)})")
+            return True
+        if time.monotonic() >= deadline:
+            why = "camera status unavailable" if streaming is None else "not streaming"
+            print(f"streaming check  FAILED  - {why}: {', '.join(missing)}")
+            return False
+        time.sleep(1.0)
 
 
 def cmd_start(caller, args) -> int:
@@ -373,6 +401,10 @@ def main() -> int:
         p = sub.add_parser(name, help=f"{helptext} (default: aux_left aux_right)")
         p.add_argument("cameras", nargs="*", metavar="CAMERA",
                        help=f"{', '.join(CAMERAS)} or all")
+        if name == "start":
+            p.add_argument("--verify-timeout", type=float, default=10.0,
+                           help="seconds to wait for every camera to be listed as "
+                                "streaming (default 10)")
     p = sub.add_parser("lights", help="set the lights brightness")
     p.add_argument("brightness", type=int, help="0-100 (0 = off)")
     p.add_argument("--channel", type=int, default=3, help="light channel 1-3 (default 3)")
