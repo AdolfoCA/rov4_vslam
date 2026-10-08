@@ -9,6 +9,26 @@
 # The status line is live: each vehicle address gets one ping (1 s timeout, all in
 # parallel), so opening a shell with the tether unplugged costs about one second.
 
+# _rov_blue TEXT ROW ROWS [COL0 WIDTH]: TEXT coloured character by character, light cyan
+# on the left to deep blue on the right, a little darker on each lower row. Truecolor
+# (24-bit) escapes; COL0/WIDTH place a piece of text inside a wider gradient.
+_rov_blue() {
+    local text=$1 row=$2 rows=$3 col0=${4:-0} width=${5:-${#1}} out="" piece k t dim
+    (( width < 2 )) && width=2
+    dim=$(( 100 - 35 * row / (rows > 1 ? rows - 1 : 1) ))   # 100% top row -> 65% bottom
+    for (( k = 0; k < ${#text}; k++ )); do
+        t=$(( 1000 * (col0 + k) / (width - 1) ))             # 0..1000 across the width
+        (( t > 1000 )) && t=1000
+        # (90, 225, 255) light cyan -> (20, 60, 210) deep blue
+        printf -v piece '\e[38;2;%d;%d;%dm%s' \
+            $(( (90 + (20 - 90) * t / 1000) * dim / 100 )) \
+            $(( (225 + (60 - 225) * t / 1000) * dim / 100 )) \
+            $(( (255 + (210 - 255) * t / 1000) * dim / 100 )) "${text:k:1}"
+        out+=$piece
+    done
+    printf '%s' "$out"
+}
+
 rov_help() {
     local rov_ip=${ROV_IP:-192.168.2.2} dvl_ip=${DVL_IP:-192.168.2.128} cam_ip=10.42.0.5
 
@@ -16,7 +36,6 @@ rov_help() {
     local cmd=$'\e[1;38;5;159m' hd=$'\e[1;38;5;39m' warn=$'\e[38;5;221m'
     local ok=$'\e[38;5;48m' bad=$'\e[38;5;203m'
     local sep="  \e[38;5;24m-------------------------------------------------------------------${r}\n"
-    local grad=(26 25 20 19 19 18)  # deep to navy blue, one per banner row
 
     # --- Live check: pings in parallel ---------------------------------------------------
     local tmp ip; tmp=$(mktemp -d)
@@ -38,10 +57,11 @@ rov_help() {
     local i
     echo
     for i in "${!banner[@]}"; do
-        printf '  \e[38;5;%sm%s%s\n' "${grad[i]}" "${banner[i]}" "$r"
+        printf '  %s%s\n' "$(_rov_blue "${banner[i]}" "$i" "${#banner[@]}")" "$r"
     done
-    printf '  \e[38;5;19m≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈%s  %sM I S S I O N   P A N E L%s  \e[38;5;18m≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈%s\n' \
-        "$r" "${b}"$'\e[38;5;26m' "$r" "$r"
+    printf '  %s%s  %sM I S S I O N   P A N E L%s  %s%s\n' \
+        "$(_rov_blue '≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈' 6 7 0 67)" "$r" "${b}"$'\e[38;5;39m' "$r" \
+        "$(_rov_blue '≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈' 6 7 50 67)" "$r"
     printf "$sep"
     printf '  %sROS 2 sensor drivers for the BlueROV2 Heavy (IMU, DVL, cameras). No vehicle control.%s\n' "$d" "$r"
     printf '  %s ROV   %s DVL   %s Multi-camera\n' \
