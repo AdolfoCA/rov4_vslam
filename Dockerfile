@@ -192,6 +192,8 @@ RUN printf '%s\n' \
     "[ -f /home/$USERNAME/ros2_ws/install/setup.bash ] && source /home/$USERNAME/ros2_ws/install/setup.bash" \
     "alias build_ws='cd /home/$USERNAME/ros2_ws && MAKEFLAGS=-j$BUILD_JOBS colcon build --symlink-install --parallel-workers $BUILD_JOBS --cmake-args -DCMAKE_BUILD_TYPE=Release && source install/setup.bash'" \
     "alias multicam='ros2 run bluerov2_bringup multicam.py'" \
+    "# Mission panel (status + checklist) on every interactive shell; rov_help reprints it." \
+    "[ -f /home/$USERNAME/ros2_ws/src/bluerov2_bringup/scripts/welcome.sh ] && source /home/$USERNAME/ros2_ws/src/bluerov2_bringup/scripts/welcome.sh" \
     >> /home/$USERNAME/.bashrc
 
 CMD ["bash"]

@@ -45,6 +45,10 @@ services:
       - ./ros2_ws/src:/home/rosdev/ros2_ws/src:cached
       # Somewhere to drop rosbags that survives the container.
       - ./data:/home/rosdev/data:rw
+      # External drives (USB SSD) at the same path as on the host, /media/<user>/<drive>.
+      # rslave: a drive plugged in after the container started shows up here as well.
+      # Record to one with output_dir:=/media/<user>/<drive>/<folder>.
+      - /media:/media:rslave
       # X11
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ${XAUTHORITY:-$HOME/.Xauthority}:/home/rosdev/.Xauthority:rw

@@ -79,7 +79,10 @@ class RecordingManager(Node):
         self.set_parameters([rclpy.parameter.Parameter("folder", value=folder)])
         target = self._output_dir()
         data_dir = os.path.normpath(str(self.get_parameter("data_dir").value))
-        note = "" if target.startswith(data_dir) else \
+        # data/ and the external drives under /media are host mounts; anything else is
+        # inside the container only.
+        kept = target.startswith((data_dir, "/media/"))
+        note = "" if kept else \
             " - WARNING: outside the data directory, lost when the container is removed"
         with self._lock:
             busy = self._proc is not None

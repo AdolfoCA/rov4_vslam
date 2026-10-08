@@ -259,6 +259,14 @@ same launch file for you: the **Record** tab of the layout has Start / Stop butt
 status. The Overview tab has the Start / Stop bar too. Bags go to
 `data/<folder>/rov_YYYYmmdd_HHMMSS`. Only `data/` is kept outside the container.
 
+**To an external SSD.** The host's `/media` is mounted into the container at the same
+path, so a plugged-in drive is at `/media/<user>/<drive>` inside too, even if it was
+plugged in after `docker compose up`. Terminal: add
+`output_dir:=/media/<user>/<drive>/rov`. Foxglove: type that absolute path into **Set
+folder**. The welcome panel lists the drives it sees. The drive must be writable by
+UID 1000: exFAT/NTFS drives mounted by the desktop are; an ext4 drive may need
+`sudo chown -R $USER /media/$USER/<drive>` once on the host.
+
 **The stream check.** Before recording, `check_streams.py` subscribes to each selected
 sensor, waits up to `check_timeout` for data and measures the rate. It prints a table
 like this:
