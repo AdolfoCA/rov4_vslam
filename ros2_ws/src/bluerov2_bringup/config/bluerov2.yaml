@@ -160,6 +160,9 @@
     publish_compressed: true
     jpeg_quality: 90
     timestamp_offset_s: 0.0
+    # Stamp frames from the RTP timestamps (regular to the sender's frame clock) instead
+    # of on arrival (3-4 ms jitter). Verified 2026-10-26, see camera_node.py.
+    timestamp_source: "rtp"
     watchdog_period_s: 5.0
     restart_after_silence_s: 10.0
 
@@ -175,6 +178,9 @@
     publish_compressed: true
     jpeg_quality: 90
     timestamp_offset_s: 0.0
+    # Stamp frames from the RTP timestamps (regular to the sender's frame clock) instead
+    # of on arrival (3-4 ms jitter). Verified 2026-10-26, see camera_node.py.
+    timestamp_source: "rtp"
     watchdog_period_s: 5.0
     restart_after_silence_s: 10.0
 
