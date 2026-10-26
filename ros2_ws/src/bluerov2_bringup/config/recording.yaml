@@ -57,7 +57,7 @@ groups:
       - dead_reckoning/odometry          # the paths are rebuilt from this offline
 
   aux_left:                              # multi-camera top pair, left
-    enabled: false
+    enabled: true
     check: {topic: multicam/aux_left/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
     topics:
       - multicam/aux_left/camera_info
@@ -65,7 +65,7 @@ groups:
       # - multicam/aux_left/image_raw            # raw, ~39 MB/s
 
   aux_right:                             # multi-camera top pair, right
-    enabled: false
+    enabled: true
     check: {topic: multicam/aux_right/camera_info, type: sensor_msgs/msg/CameraInfo, min_hz: 10}
     topics:
       - multicam/aux_right/camera_info
