@@ -33,6 +33,13 @@ Launch arguments (all optional):
     lights_test_seconds:=5
     lights:=0                  lights level left on after the start (0 = off)
     check_timeout:=15          seconds the stream check waits for each sensor
+    dvl_health:=true           DVL data checklist on dvl/health, shown in Foxglove
+    dead_reckoning:=false dvl_calibration:=false recording_control:=false
+                               extra nodes of bluerov2.launch.py, off in a session;
+                               switch one on with e.g. dead_reckoning:=true
+
+The drivers log only when a sensor stops arriving (and once when it is back). For the
+periodic "N Hz" lines set log_rates: true for that node in config/bluerov2.yaml.
 
 Lights can be changed at any time afterwards with `multicam lights <0-100>`.
 """
@@ -58,6 +65,15 @@ MULTICAM_CAMERAS = {
     "aux_right": "true",
     "stereo_bottom": "false",
     "bottom_most": "false",
+}
+# Extra nodes of bluerov2.launch.py (on by default there): Foxglove helpers and DVL
+# tools. A session starts only dvl_health (it is quiet and feeds Foxglove's DVL
+# indicator); the others stay off unless switched on here.
+EXTRA_NODES = {
+    "dvl_health": "true",          # DVL data checklist on dvl/health, for Foxglove
+    "dead_reckoning": "false",     # IMU + DVL track; also publishes TF odom -> base_link
+    "dvl_calibration": "false",    # dvl/calibration/start service (Foxglove button)
+    "recording_control": "false",  # recording_manager: start/stop recordings from Foxglove
 }
 NAMESPACE = "bluerov2"
 CAMERA_INFO = "sensor_msgs/msg/CameraInfo"
@@ -115,6 +131,7 @@ def _session(context, *_args, **_kwargs):
         launch_arguments={
             "camera": _value(context, "camera"),
             **{c: _value(context, c) for c in MULTICAM_CAMERAS},
+            **{n: _value(context, n) for n in EXTRA_NODES},
         }.items(),
     )
 
@@ -175,6 +192,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("camera", default_value="true"),
         ]
         + [DeclareLaunchArgument(c, default_value=d) for c, d in MULTICAM_CAMERAS.items()]
+        + [DeclareLaunchArgument(n, default_value=d) for n, d in EXTRA_NODES.items()]
         + [
             DeclareLaunchArgument("lights_test", default_value="true"),
             DeclareLaunchArgument("lights_test_power", default_value="50"),
