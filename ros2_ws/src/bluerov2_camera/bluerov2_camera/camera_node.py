@@ -43,18 +43,51 @@ Timestamps
     ``mode=none`` so that the buffer PTS follows the RTP timestamps alone, and the PTS is
     mapped to the ROS clock with an offset that tracks the lower envelope of
     ``arrival - PTS``: it follows the fastest frames immediately and is allowed to creep
-    upwards by ``rtp_offset_drift_us_per_s`` to follow a slow drift between the two
+    upwards by ``rtp_offset_drift_us_per_s`` to follow the drift between the two
     clocks. The stamps are as regular as the sender's frame clock; what remains is the
-    constant minimum latency. Measured 2026-10-26 on the multi-camera system: RTP
-    advances by exactly 3000 ticks (33.333 ms) per frame and tracks real time to a few
-    ppm, while the arrival times jitter by 3-4 ms.
+    constant minimum latency. The creep must be faster than the drift (58 us/s between
+    the camera computer and topside, 2026-10-30): at the old 20 us/s the stamps fell
+    behind by ~44 ms over a 14-minute recording. Any faster and the stamps run late
+    between fast frames, because the capture-to-arrival latency wanders by 0-40 ms on
+    the camera computer's side: at 100 us/s the error stayed within ~5 ms in a 5-minute
+    test. With ``rtp_frame_grid`` a PTS that falls off the regular frame grid is put
+    back on it first. Both steps are in ``rtp_clock.py``.
 
-The RTP epoch is arbitrary and there are no RTCP sender reports, so either way the
-stamp still carries a constant latency. If the camera must be synchronised with the IMU,
-calibrate that offset (Kalibr) and set ``timestamp_offset_s``; with ``rtp`` it is the
-only correction needed. A ``sensor_msgs/TimeReference`` on ``<node>/time_reference``
-carries, for every frame, the arrival time (header) and the RTP-based time (time_ref),
-so the two can be compared from a bag.
+    Where the RTP time comes from depends on the sender. The Blue Atlas camera software
+    re-times every camera to a 30 Hz tick of its own clock (intervideosrc): RTP advances
+    by exactly 3000 ticks per frame but does not carry the capture time, and every ~355 s
+    each camera repeats or drops a frame, so the left/right pairing can shift by one
+    frame (2026-10-30, see jetson/aux_sync_pipeline.py). The aux pipeline started with
+    ``multicam sync-start`` sends the kernel capture time of each frame instead, the same
+    for both aux cameras to within +-14 us.
+
+``capture`` (only with that aux pipeline)
+    The aux pipeline runs on the camera computer's wall clock, so the RTP timestamp of a
+    frame is its capture time in wall-clock time (90 kHz, modulo 2^32 ticks = ~13.3 h;
+    the period is picked from the arrival time). The node reads it from every RTP packet
+    (pad probe before the depayloader) and stamps the frame with it directly: no latency
+    estimate, no drift to follow, both cameras of a capture get the same stamp. It is the
+    capture time on the topside clock as long as the camera computer's clock is
+    synchronised to the topside (`multicam timesync-setup`; within ~1 ms). If a stamp
+    comes out in the future or more than ``capture_max_latency_s`` old, the clock is not
+    synchronised: the node says so and falls back to ``rtp`` until it is. The frame grid
+    correction applies here too.
+
+``stamp_reference_topic`` (only with that aux pipeline)
+    The TimeReference topic of another camera of the same rig, e.g.
+    ``aux_left/time_reference`` on the right camera. Each node estimates its own minimum
+    latency, so two cameras that capture together still get stamps a few ms apart. With
+    this set, a frame takes the stamp of the reference camera's frame within half a frame
+    period (the same capture), so both cameras of a pair carry identical stamps. Leave it
+    empty with the Blue Atlas pipeline, where the nearest frame of the other camera is
+    not necessarily the same capture.
+
+With ``arrival`` and ``rtp`` the stamp still carries a constant latency (the RTP epoch
+of the Blue Atlas stream is arbitrary); with ``capture`` it is the capture time itself.
+Whatever is left between the camera and the IMU, calibrate it (Kalibr) and set
+``timestamp_offset_s``. A ``sensor_msgs/TimeReference`` on ``<node>/time_reference``
+carries, for every frame, the arrival time (header), the stamp (time_ref) and which
+method gave it (source: "capture" or "rtp"), so they can be checked from a bag.
 """
 
 from __future__ import annotations
@@ -62,7 +95,8 @@ from __future__ import annotations
 import array
 import signal
 import threading
-from typing import Optional, Tuple
+from collections import OrderedDict, deque
+from typing import Optional
 
 # GStreamer MUST be imported before rclpy. Importing gi/Gst *after* rclpy leaves the
 # process in a state where the very next rclpy Node() construction segfaults inside the
@@ -73,7 +107,8 @@ try:
 
     gi.require_version("Gst", "1.0")
     gi.require_version("GstApp", "1.0")
-    from gi.repository import GLib, Gst, GstApp  # noqa: F401 - GstApp registers appsink
+    gi.require_version("GstRtp", "1.0")
+    from gi.repository import GLib, Gst, GstApp, GstRtp  # noqa: F401 - GstApp registers appsink
 except (ImportError, ValueError) as exc:  # pragma: no cover
     raise ImportError(
         "PyGObject with GStreamer 1.0 typelibs is required. Inside the container these "
@@ -89,6 +124,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image, TimeReference
 
 from bluerov2_camera.calibration import load_camera_info, uncalibrated_camera_info
+from bluerov2_camera.rtp_clock import EnvelopeClock, FrameGrid
 
 try:
     import cv2
@@ -102,7 +138,7 @@ DEFAULT_PIPELINE = (
     "udpsrc port={port} "
     'caps="application/x-rtp,media=video,encoding-name={encoding},payload=96,clock-rate=90000" '
     "! rtpjitterbuffer latency={latency_ms} drop-on-latency=true mode={jitter_mode} "
-    "! rtp{codec}depay "
+    "! rtp{codec}depay name=depay "
     "! {codec}parse "
     "! avdec_{codec} output-corrupt=false "
     "! queue max-size-buffers=2 leaky=downstream "
@@ -149,7 +185,11 @@ class BlueRov2CameraNode(Node):
         self.declare_parameter("timestamp_offset_s", 0.0)
         # "arrival" or "rtp": see Timestamps in the module docstring.
         self.declare_parameter("timestamp_source", "arrival")
-        self.declare_parameter("rtp_offset_drift_us_per_s", 20.0)
+        self.declare_parameter("rtp_offset_drift_us_per_s", 100.0)
+        self.declare_parameter("rtp_frame_grid", True)
+        self.declare_parameter("capture_max_latency_s", 1.0)
+        # See stamp_reference_topic in the module docstring.
+        self.declare_parameter("stamp_reference_topic", "")
 
         self.declare_parameter("watchdog_period_s", 5.0)
         self.declare_parameter("restart_after_silence_s", 10.0)
@@ -163,11 +203,19 @@ class BlueRov2CameraNode(Node):
         self._frame_id: str = p("frame_id").value
         self._timestamp_offset_ns = int(float(p("timestamp_offset_s").value) * 1e9)
         self._timestamp_source = str(p("timestamp_source").value).strip().lower()
-        if self._timestamp_source not in ("arrival", "rtp"):
+        if self._timestamp_source not in ("arrival", "rtp", "capture"):
             raise RuntimeError(
-                f"Unsupported timestamp_source '{self._timestamp_source}': use 'arrival' or 'rtp'"
+                f"Unsupported timestamp_source '{self._timestamp_source}': "
+                "use 'arrival', 'rtp' or 'capture'"
             )
-        self._rtp_drift_ns_per_ns = float(p("rtp_offset_drift_us_per_s").value) * 1e-6
+        self._rtp_clock = EnvelopeClock(float(p("rtp_offset_drift_us_per_s").value))
+        self._frame_grid = FrameGrid() if bool(p("rtp_frame_grid").value) else None
+        # capture: RTP timestamp of each PTS (filled by a pad probe), its own frame grid,
+        # and how many frames in a row failed the clock check.
+        self._capture_max_latency_ns = int(float(p("capture_max_latency_s").value) * 1e9)
+        self._rtp_by_pts: "OrderedDict[int, int]" = OrderedDict()
+        self._capture_grid = FrameGrid() if bool(p("rtp_frame_grid").value) else None
+        self._capture_bad = 0
         self._publish_compressed = bool(p("publish_compressed").value)
         self._jpeg_quality = int(p("jpeg_quality").value)
 
@@ -192,6 +240,15 @@ class BlueRov2CameraNode(Node):
         self._pub_time_ref = self.create_publisher(
             TimeReference, f"{self.get_name()}/time_reference", qos_profile_sensor_data
         )
+        # RTP-based stamps of the reference camera's recent frames [ns].
+        self._reference_stamps: deque = deque(maxlen=90)
+        reference_topic = str(p("stamp_reference_topic").value).strip()
+        self._has_reference = bool(reference_topic)
+        if reference_topic:
+            self.create_subscription(
+                TimeReference, reference_topic, self._on_reference, qos_profile_sensor_data
+            )
+            self.get_logger().info(f"Stamps follow the frames on '{reference_topic}'")
 
         # --- Calibration ---------------------------------------------------------------
         self._camera_info: Optional[CameraInfo] = None
@@ -217,9 +274,6 @@ class BlueRov2CameraNode(Node):
         self._frames_since_report = 0
         self._counter_lock = threading.Lock()
         self._last_frame_time = self.get_clock().now()
-        # RTP-to-ROS mapping: offset [ns] and the PTS / arrival of the last frame.
-        self._rtp_offset_ns: Optional[int] = None
-        self._rtp_last: Optional[Tuple[int, int]] = None
 
         Gst.init(None)
         self._pipeline: Optional[Gst.Pipeline] = None
@@ -248,7 +302,7 @@ class BlueRov2CameraNode(Node):
             encoding=codec.upper(),
             # none: PTS from the RTP timestamps only; slave (GStreamer's default):
             # PTS smoothed against the arrival times.
-            jitter_mode="none" if self._timestamp_source == "rtp" else "slave",
+            jitter_mode="none" if self._timestamp_source in ("rtp", "capture") else "slave",
             # Without OpenCV the node cannot convert I420 itself.
             format="I420" if cv2 is not None else "BGR",
         )
@@ -269,6 +323,12 @@ class BlueRov2CameraNode(Node):
                 "appsink with that name to pull frames from."
             )
         sink.connect("new-sample", self._on_new_sample)
+        if self._timestamp_source == "capture":
+            depay = pipeline.get_by_name("depay")
+            if depay is None:
+                raise RuntimeError("timestamp_source 'capture' needs the default pipeline "
+                                   "(an RTP depayloader named 'depay')")
+            depay.get_static_pad("sink").add_probe(Gst.PadProbeType.BUFFER, self._on_rtp)
 
         bus = pipeline.get_bus()
         bus.add_signal_watch()
@@ -278,8 +338,12 @@ class BlueRov2CameraNode(Node):
         pipeline.set_state(Gst.State.PLAYING)
         self._pipeline = pipeline
         self._last_frame_time = self.get_clock().now()
-        self._rtp_offset_ns = None  # a new pipeline starts a new PTS timeline
-        self._rtp_last = None
+        self._rtp_clock.reset()  # a new pipeline starts a new PTS timeline
+        self._rtp_by_pts.clear()
+        if self._capture_grid is not None:
+            self._capture_grid.reset()
+        if self._frame_grid is not None:
+            self._frame_grid.reset()
 
     def _stop_pipeline(self) -> None:
         if self._pipeline is not None:
@@ -348,39 +412,95 @@ class BlueRov2CameraNode(Node):
         return Gst.FlowReturn.OK
 
     def _rtp_time_ns(self, pts: int, arrival_ns: int) -> int:
-        """Map a PTS that follows the RTP timestamps onto the ROS clock.
+        """Map a PTS that follows the RTP timestamps onto the ROS clock (rtp_clock.py)."""
+        if self._frame_grid is not None:
+            pts = self._frame_grid.correct(pts)
+        return self._rtp_clock.to_ros(pts, arrival_ns)
 
-        The offset tracks the lower envelope of arrival - PTS: it drops at once to a
-        faster frame and otherwise creeps upwards at the configured drift rate, so it
-        follows a slow drift between the sender and ROS clocks without picking up the
-        arrival jitter.
+    def _on_rtp(self, _pad, info):
+        """Pad probe on the depayloader input: remember the RTP timestamp of each PTS."""
+        buffer = info.get_buffer()
+        ok, rtp = GstRtp.RTPBuffer.map(buffer, Gst.MapFlags.READ)
+        if ok:
+            self._rtp_by_pts[buffer.pts] = rtp.get_timestamp()
+            rtp.unmap()
+            while len(self._rtp_by_pts) > 512:
+                self._rtp_by_pts.popitem(last=False)
+        return Gst.PadProbeReturn.OK
+
+    def _capture_time_ns(self, pts: int, arrival_ns: int) -> Optional[int]:
+        """Capture wall-clock time of the frame with this PTS, or None to fall back.
+
+        RTP ticks at 90 kHz count wall-clock time modulo 2^32 ticks; the multiple of
+        2^32 is the one that puts the capture closest to the arrival.
         """
-        last = self._rtp_last
-        if last is not None and not (0 < pts - last[0] < 2_000_000_000):
-            self._rtp_offset_ns = None  # PTS went backwards or jumped: new timeline
-        raw = arrival_ns - pts
-        if self._rtp_offset_ns is None:
-            self._rtp_offset_ns = raw
-        else:
-            creep = int((arrival_ns - last[1]) * self._rtp_drift_ns_per_ns)
-            self._rtp_offset_ns = min(self._rtp_offset_ns + creep, raw)
-        self._rtp_last = (pts, arrival_ns)
-        return pts + self._rtp_offset_ns
+        ticks = self._rtp_by_pts.get(pts)
+        if ticks is None:
+            return None
+        # Count in ticks (1 tick = 100000/9 ns) so that nothing is rounded but the end.
+        wraps = round((arrival_ns * 9 / 100_000 - ticks) / (1 << 32))
+        capture = (ticks + wraps * (1 << 32)) * 100_000 // 9
+        latency = arrival_ns - capture
+        if not -50_000_000 < latency < self._capture_max_latency_ns:
+            self._capture_bad += 1
+            if self._capture_bad >= 30:
+                self.get_logger().error(
+                    f"Capture time {latency / 1e6:+.0f} ms from arrival: the camera "
+                    "computer's clock is not synchronised to this one (multicam "
+                    "timesync-check). Stamping from the RTP time and arrival instead.",
+                    throttle_duration_sec=30.0,
+                )
+            return None
+        self._capture_bad = 0
+        if self._capture_grid is not None:
+            capture = self._capture_grid.correct(capture)
+        return capture
+
+    def _on_reference(self, msg: TimeReference) -> None:
+        self._reference_stamps.append(rclpy.time.Time.from_msg(msg.time_ref).nanoseconds)
+
+    def _follow_reference(self, time_ns: int) -> int:
+        """The reference camera's stamp for the same capture, or time_ns if unknown.
+
+        The same capture is the reference frame within half a frame period. If it has
+        not arrived yet, its stamp is predicted on the reference's regular frame grid.
+        """
+        refs = list(self._reference_stamps)
+        if len(refs) < 10 or abs(time_ns - refs[-1]) > 1_000_000_000:
+            return time_ns  # no reference yet, or it stopped
+        steps = np.diff(refs)
+        period = float(np.median(steps[steps > 0])) if np.any(steps > 0) else 0.0
+        if period <= 0.0:
+            return time_ns
+        nearest = min(refs, key=lambda r: abs(r - time_ns))
+        if abs(nearest - time_ns) <= period / 2:
+            return nearest
+        n = round((time_ns - refs[-1]) / period)
+        return int(round(refs[-1] + n * period))
 
     def _publish_frame(
         self, frame: np.ndarray, width: int, height: int, pts: Optional[int] = None
     ) -> None:
         now = self.get_clock().now()
-        if self._timestamp_source == "rtp" and pts is not None:
-            time_ns = self._rtp_time_ns(pts, now.nanoseconds)
+        if self._timestamp_source in ("rtp", "capture") and pts is not None:
+            time_ns = None
+            if self._timestamp_source == "capture":
+                time_ns = self._capture_time_ns(pts, now.nanoseconds)
+            source = "capture" if time_ns is not None else "rtp"
+            # The RTP mapping runs on every frame, so it is ready if capture falls back.
+            rtp_ns = self._rtp_time_ns(pts, now.nanoseconds)
+            if time_ns is None:
+                time_ns = rtp_ns
+            if self._has_reference:
+                time_ns = self._follow_reference(time_ns)
             time_ref = TimeReference()
             time_ref.header.stamp = now.to_msg()
             time_ref.header.frame_id = self._frame_id
             time_ref.time_ref = rclpy.time.Time(nanoseconds=time_ns).to_msg()
-            time_ref.source = "rtp"
+            time_ref.source = source
             self._pub_time_ref.publish(time_ref)
         else:
-            if self._timestamp_source == "rtp":
+            if self._timestamp_source in ("rtp", "capture"):
                 self.get_logger().warning(
                     "Frame without PTS: stamping it on arrival", throttle_duration_sec=30.0
                 )
