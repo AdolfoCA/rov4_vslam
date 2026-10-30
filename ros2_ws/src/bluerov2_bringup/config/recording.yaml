@@ -62,6 +62,7 @@ groups:
     topics:
       - multicam/aux_left/camera_info
       - multicam/aux_left/image_raw/compressed   # JPEG
+      - multicam/aux_left/time_reference         # arrival time + stamp of every frame
       # - multicam/aux_left/image_raw            # raw, ~39 MB/s
 
   aux_right:                             # multi-camera top pair, right
@@ -70,6 +71,7 @@ groups:
     topics:
       - multicam/aux_right/camera_info
       - multicam/aux_right/image_raw/compressed
+      - multicam/aux_right/time_reference
       # - multicam/aux_right/image_raw
 
   stereo_bottom:                         # needs stereo_bottom:=true on the drivers too
