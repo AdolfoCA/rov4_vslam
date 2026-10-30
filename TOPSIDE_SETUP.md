@@ -154,6 +154,49 @@ file is visible to `multicam` but never committed. **Never put the real password
 template or anywhere else in the repository — it is public.** If the file is missing or
 still has `CHANGE_ME`, `session_stop` stops before the power-off and says so.
 
+**g. Time server for the camera computer.** The aux pipeline (`multicam sync-start`, the
+session default) sends each frame's capture time as the camera computer's wall-clock
+time, and the camera nodes use it as the stamp (`timestamp_source: capture`). That is
+only right if the camera computer's clock agrees with the laptop's. It has no internet,
+so on its own it never synchronises (12 minutes off on 2026-10-30) and its clock runs
+~50-90 ppm slow: the laptop serves it the time on the tether. On the laptop, `chrony`
+replaces `systemd-timesyncd` and keeps synchronising the laptop itself from the internet
+as before:
+
+```bash
+sudo apt install chrony
+printf 'allow 10.42.0.0/24\nallow 192.168.1.0/24\nlocal stratum 10\n' | sudo tee -a /etc/chrony/chrony.conf
+sudo systemctl restart chrony
+sudo ufw status                    # if active: sudo ufw allow from 10.42.0.0/24 to any port 123 proto udp
+```
+
+`local stratum 10` keeps serving time when the laptop is offline (in the field). Then,
+once per camera computer, with it switched on, inside the container:
+
+```bash
+multicam timesync-setup            # installs chrony on the camera computer, server = laptop
+multicam timesync-check            # exit 0 when within 0.5 ms + half the tether round trip
+```
+
+`timesync-setup` needs the chrony package for the camera computer (Ubuntu 20.04 arm64; it
+has no internet), downloaded once on the laptop into `data/jetson_pkgs/`:
+
+```bash
+mkdir -p data/jetson_pkgs && cd data/jetson_pkgs
+curl -O http://ports.ubuntu.com/pool/main/c/chrony/chrony_3.5-6ubuntu6.2_arm64.deb
+sha256sum chrony_3.5-6ubuntu6.2_arm64.deb   # 5558692a69cfa19ebcfbeb9e266ff401585c10385d0d7bfa61c2a16cb7101c09
+```
+
+It copies the package over SSH and installs it offline in place of `systemd-timesyncd`;
+it first simulates the install and stops, touching nothing, if apt plans anything else
+(without the explicit removal apt wanted to upgrade systemd). It writes
+`/etc/chrony/chrony.conf` with the laptop as the only server (the original stays as
+`chrony.conf.debian`). The Blue Atlas software is not affected; away from this laptop
+chrony just lets the clock run free, as before. Done on 2026-10-30: chrony on the camera
+computer reached a few µs of its own estimate within minutes, and the independent check
+read +0.4 ms (round trip 4.1 ms, so known to +-2 ms). `systemd-timesyncd` alone, tried
+first, let the clock drift 5-9 ms between its ever rarer polls.
+
 ---
 
 ## 3. Per-vehicle configuration

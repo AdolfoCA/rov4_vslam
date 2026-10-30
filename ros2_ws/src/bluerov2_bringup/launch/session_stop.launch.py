@@ -5,7 +5,8 @@
 Run it inside the container at the end of the day, then unplug the battery when it
 prints "safe to unplug". It runs `multicam shutdown`, which:
 
-    1. stops every multi-camera stream        (/ba/camera_feed_manager/detach_...)
+    1. stops our aux pipeline (`multicam sync-start`, the session default) over SSH,
+       or else every Blue Atlas stream         (/ba/camera_feed_manager/detach_...)
     2. sets the lights to 0 on channels 1-3   (/ba/light_controller/set_brightness)
     3. powers off the multi-camera computer   (ssh nvidia@10.42.0.5 sudo poweroff)
     4. waits until it stops answering ping, plus a margin for its disks

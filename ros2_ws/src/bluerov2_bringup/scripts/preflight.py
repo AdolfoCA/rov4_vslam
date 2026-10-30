@@ -10,8 +10,10 @@ Checks (any subset, in any order):
             IMU driver uses. Run this before the IMU driver starts: two programs on one
             UDP port share its packets.
     dvl     the DVL answers ping (192.168.2.128) and its TCP port 16171 is open
-    nvidia  the multi-camera computer answers ping (10.42.0.5) and its camera software
-            answers camera_status (checked with `multicam.py status`, on CycloneDDS)
+    nvidia  the multi-camera computer answers ping (10.42.0.5), the SSH login works and
+            both aux cameras exist (`multicam.py sync-status`): what `multicam sync-start`
+            needs. The Blue Atlas camera software is not checked: session_start replaces
+            it with our aux pipeline, which may also be running already.
 
 Every 3 s the checks that are not OK yet are retried. A table is printed whenever
 something changes, and a reminder every 15 s. Exit 0 when everything is OK, 1 when
@@ -97,7 +99,7 @@ class HeartbeatListener:
 
 def nvidia_software_ok() -> bool:
     return subprocess.run(
-        ["ros2", "run", "bluerov2_bringup", "multicam.py", "--timeout", "4", "status"],
+        ["ros2", "run", "bluerov2_bringup", "multicam.py", "sync-status"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0
 
@@ -145,10 +147,10 @@ def main() -> int:
                 if not ping(NVIDIA_IP):
                     status["nvidia"] = "no ping reply"
                 elif not nvidia_software_ok():
-                    status["nvidia"] = "ping OK, camera software not answering yet"
+                    status["nvidia"] = "ping OK, SSH login or aux cameras not ready yet"
                 else:
                     ok["nvidia"] = True
-                    status["nvidia"] = f"ping + camera software OK after {elapsed:.0f} s"
+                    status["nvidia"] = f"ping + SSH + aux cameras OK after {elapsed:.0f} s"
 
             elapsed = time.monotonic() - start
             current = table(elapsed)

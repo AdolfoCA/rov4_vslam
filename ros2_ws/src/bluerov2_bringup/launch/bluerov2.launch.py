@@ -28,6 +28,12 @@ Launch arguments (all optional):
     aux_right:=true          camera node for Aux Right      (UDP 5701)
     stereo_bottom:=false     camera node for Stereo Bottom  (UDP 5702)
     bottom_most:=false       camera node for Bottom Most    (UDP 5703)
+    aux_pipeline:=sync       who streams the aux pair: sync (our pipeline with capture
+                             timestamps, `multicam sync-start`; the default) or blueatlas
+                             (the camera system's own software, `multicam start`). With
+                             sync both aux nodes stamp each frame with its capture time
+                             (timestamp_source: capture), which needs the camera
+                             computer's clock synchronised (`multicam timesync-setup`).
 
 Multi-camera topics: <namespace>/multicam/<camera>/image_raw, .../image_raw/compressed
 and .../camera_info. Ports, codec and frame ids are in config/bluerov2.yaml. These nodes
@@ -98,6 +104,19 @@ def _driver_nodes(context, *_args, **_kwargs):
     compress_video = LaunchConfiguration("compressed_video").perform(context).strip().lower() \
         in ("true", "1", "yes", "on")
     camera_overrides = {"publish_compressed": compress_video}
+
+    aux_pipeline = LaunchConfiguration("aux_pipeline").perform(context).strip().lower()
+    if aux_pipeline not in ("blueatlas", "sync"):
+        raise RuntimeError(f"aux_pipeline must be 'blueatlas' or 'sync', not '{aux_pipeline}'")
+    # Only with our pipeline is the nearest Aux Left frame the same capture.
+    # With our pipeline the RTP timestamp is the capture wall-clock time (capture); the
+    # right node also follows the left one, which only matters if capture falls back to
+    # rtp (camera computer's clock not synchronised).
+    multicam_overrides = {
+        "aux_left": {"timestamp_source": "capture"},
+        "aux_right": {"timestamp_source": "capture",
+                      "stamp_reference_topic": "aux_left/time_reference"},
+    } if aux_pipeline == "sync" else {}
 
     common = ["--ros-args", "--log-level", log_level]
 
@@ -205,7 +224,7 @@ def _driver_nodes(context, *_args, **_kwargs):
             name=camera,
             namespace="multicam",
             output="screen",
-            parameters=[params_file],
+            parameters=[params_file, multicam_overrides.get(camera, {})],
             arguments=common,
             remappings=[
                 ("camera/image_raw", f"{camera}/image_raw"),
@@ -243,6 +262,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("rov_ip", default_value=""),
         DeclareLaunchArgument("dvl_ip", default_value=""),
         DeclareLaunchArgument("log_level", default_value="info"),
+        DeclareLaunchArgument("aux_pipeline", default_value="sync"),
     ] + [
         DeclareLaunchArgument(camera, default_value=default)
         for camera, default in MULTICAM_CAMERAS.items()

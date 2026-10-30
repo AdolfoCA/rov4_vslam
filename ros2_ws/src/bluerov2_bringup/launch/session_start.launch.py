@@ -10,10 +10,14 @@ streams keep running on the multi-camera computer until session_stop.
 Sequence - each step must succeed before the next one starts:
 
     1. preflight   wait (up to wait_timeout) until Pi, IMU heartbeat, DVL and the
-                   multi-camera computer (ping + camera software) are all reachable
+                   multi-camera computer (ping + SSH + both aux cameras) are reachable
     2. drivers     bluerov2.launch.py, with the camera switches below
-    3. cameras     multicam start <enabled multi-cameras>; fails unless the camera
-                   system then lists every one of them as streaming
+    3. cameras     multicam sync-start: our aux pipeline with capture timestamps
+                   replaces the Blue Atlas camera software (~40-60 s, most of it
+                   waiting for the Blue Atlas program to stop); fails unless the
+                   pipeline then runs and holds both cameras. If it already runs
+                   (session started again without a power cycle) it is left as is.
+                   With aux_pipeline:=blueatlas: multicam start <enabled cameras>.
     4. lights      lights_test_power % for lights_test_seconds, then `lights` (default 0)
     5. check       check_streams.py on every started sensor
     6.             SESSION READY
@@ -28,6 +32,12 @@ Launch arguments (all optional):
     camera:=true               nose camera driver (+ the relay for QGroundControl)
     aux_left:=true aux_right:=true stereo_bottom:=false bottom_most:=false
                                multi-camera nodes, and which streams are started
+    aux_pipeline:=sync         sync (default): our aux pipeline with capture timestamps
+                               (`multicam sync-start`, aux pair only - it stops the Blue
+                               Atlas camera software until session_stop powers the camera
+                               computer off, or `multicam sync-stop`). blueatlas: the
+                               camera system's own streams (`multicam start`), needed for
+                               stereo_bottom / bottom_most. See multicam.py.
     lights_test:=true          flash the lights to show the session is starting
     lights_test_power:=50      % during the test
     lights_test_seconds:=5
@@ -115,6 +125,11 @@ def _sequence(steps, final_actions):
 def _session(context, *_args, **_kwargs):
     cameras = [c for c in MULTICAM_CAMERAS if _flag(context, c)]
     nose = _flag(context, "camera")
+    sync = _value(context, "aux_pipeline").lower() == "sync"
+    if sync and sorted(cameras) != ["aux_left", "aux_right"]:
+        return [LogInfo(msg="\n*** SESSION NOT READY: aux_pipeline:=sync streams the aux pair "
+                            "only; set aux_left:=true aux_right:=true and the other "
+                            "multi-cameras to false. ***\n")]
 
     # 1. preflight
     checks = [c for c in ("pi", "imu", "dvl", "nvidia") if _flag(context, f"check_{c}")]
@@ -132,12 +147,15 @@ def _session(context, *_args, **_kwargs):
             "camera": _value(context, "camera"),
             **{c: _value(context, c) for c in MULTICAM_CAMERAS},
             **{n: _value(context, n) for n in EXTRA_NODES},
+            "aux_pipeline": _value(context, "aux_pipeline"),
         }.items(),
     )
 
     # 3-5. cameras, lights, stream check
     steps = []
-    if cameras:
+    if sync:
+        steps.append(_ros_run("start cameras", "multicam.py", "sync-start"))
+    elif cameras:
         steps.append(_ros_run("start cameras", "multicam.py", "start", *cameras))
     if _flag(context, "lights_test"):
         steps.append(_ros_run("lights on", "multicam.py", "lights",
@@ -164,7 +182,9 @@ def _session(context, *_args, **_kwargs):
         "  record (second shell):  ros2 launch bluerov2_bringup record.launch.py\n"
         "  lights:                 multicam lights <0-100>\n"
         "  end of session:         ros2 launch bluerov2_bringup session_stop.launch.py\n"
-        "==================================================================\n"))]
+        + ("  aux cameras: our pipeline (capture timestamps), on until session_stop\n"
+           if sync else "")
+        + "==================================================================\n"))]
 
     after_drivers = _sequence(steps, ready)
     if preflight is None:
@@ -190,6 +210,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("check_dvl", default_value="true"),
             DeclareLaunchArgument("check_nvidia", default_value="true"),
             DeclareLaunchArgument("camera", default_value="true"),
+            DeclareLaunchArgument("aux_pipeline", default_value="sync"),
         ]
         + [DeclareLaunchArgument(c, default_value=d) for c, d in MULTICAM_CAMERAS.items()]
         + [DeclareLaunchArgument(n, default_value=d) for n, d in EXTRA_NODES.items()]
