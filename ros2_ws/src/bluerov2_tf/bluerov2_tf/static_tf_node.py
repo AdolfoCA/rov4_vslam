@@ -30,8 +30,11 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+import signal
+
 import rclpy
 from geometry_msgs.msg import TransformStamped
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from tf2_ros import StaticTransformBroadcaster
 
@@ -141,9 +144,13 @@ def main(args=None) -> None:
 
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Ctrl-C reaches every node twice: from the terminal (the whole process group)
+        # and again from ros2 launch. Ignore the second one, so the cleanup below is
+        # not interrupted halfway with a KeyboardInterrupt traceback.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

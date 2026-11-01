@@ -42,12 +42,14 @@ from __future__ import annotations
 import json
 import math
 import socket
+import signal
 import threading
 from typing import Any, Dict, Optional
 
 import rclpy
 from geometry_msgs.msg import TwistWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Range
@@ -118,6 +120,11 @@ class WaterLinkedDvlNode(Node):
         # of publishing them with a large covariance. Most estimators are happier with a
         # gap than with a confidently wrong measurement, so this defaults to true.
         self.declare_parameter("drop_invalid_velocity", True)
+        # Periodic "N Hz" lines every 5 s. Off by default: the node then logs only when
+        # the reports stop arriving, and once when they come back.
+        self.declare_parameter("log_rates", False)
+        self._log_rates = bool(self.get_parameter("log_rates").value)
+        self._silent = False
 
         p = self.get_parameter
         self._frame_id: str = p("frame_id").value
@@ -170,6 +177,8 @@ class WaterLinkedDvlNode(Node):
                 self._connect()
                 self._pump()
             except Exception as exc:  # noqa: BLE001 - a driver must survive any link fault
+                if self._stop.is_set() or not rclpy.ok():
+                    break  # shutting down: the socket was closed under us, not a fault
                 self.get_logger().error(f"DVL link failed: {exc}")
             finally:
                 self._close()
@@ -252,10 +261,12 @@ class WaterLinkedDvlNode(Node):
         velocity_valid = bool(report.get("velocity_valid", False))
         if not velocity_valid:
             self._invalid_streak += 1
-            if self._invalid_streak in (1, 10) or self._invalid_streak % 100 == 0:
+            # Once when the lock is lost, once when it is back: in air the DVL never
+            # has bottom lock, and a line every 100 reports was just noise.
+            if self._invalid_streak == 1:
                 self.get_logger().warning(
-                    f"DVL reports no bottom lock ({self._invalid_streak} consecutive "
-                    f"invalid reports)"
+                    "DVL lost bottom lock - velocity invalid until it is back "
+                    "(normal out of the water)"
                 )
         else:
             if self._invalid_streak:
@@ -393,6 +404,7 @@ class WaterLinkedDvlNode(Node):
             counters = dict(self._counters)
             self._counters.clear()
         if not counters:
+            self._silent = True
             self.get_logger().warning(
                 "No DVL reports in the last 5 s", throttle_duration_sec=10.0
             )
@@ -400,7 +412,11 @@ class WaterLinkedDvlNode(Node):
         rates = ", ".join(
             f"{name} {count / 5.0:.1f} Hz" for name, count in sorted(counters.items())
         )
-        self.get_logger().info(rates)
+        if self._silent:
+            self._silent = False
+            self.get_logger().info(f"DVL reports back: {rates}")
+        elif self._log_rates:
+            self.get_logger().info(rates)
 
     def destroy_node(self) -> bool:
         self._stop.set()
@@ -415,9 +431,13 @@ def main(args=None) -> None:
     node = WaterLinkedDvlNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Ctrl-C reaches every node twice: from the terminal (the whole process group)
+        # and again from ros2 launch. Ignore the second one, so the cleanup below is
+        # not interrupted halfway with a KeyboardInterrupt traceback.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

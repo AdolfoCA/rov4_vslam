@@ -38,10 +38,12 @@ with values from an Allan variance run on your own unit rather than trusting the
 
 from __future__ import annotations
 
+import signal
 import threading
 from typing import Dict
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import FluidPressure, Imu, MagneticField, Temperature
@@ -113,6 +115,11 @@ class BlueRov2ImuNode(Node):
         self.declare_parameter("connection_timeout_s", 10.0)
         self.declare_parameter("reconnect_period_s", 3.0)
         self.declare_parameter("stream_request_period_s", 10.0)
+        # Periodic "N Hz" lines every 5 s. Off by default: the node then logs only when
+        # the data stops arriving, and once when it comes back.
+        self.declare_parameter("log_rates", False)
+        self._log_rates = bool(self.get_parameter("log_rates").value)
+        self._silent = False
 
         p = self.get_parameter
         self._frame_id: str = p("frame_id").value
@@ -174,6 +181,8 @@ class BlueRov2ImuNode(Node):
                 self._connect()
                 self._pump()
             except Exception as exc:  # noqa: BLE001 - a driver must survive any link fault
+                if self._stop.is_set() or not rclpy.ok():
+                    break  # shutting down: the link was closed under us, not a fault
                 self.get_logger().error(f"MAVLink link failed: {exc}")
             finally:
                 with self._conn_lock:
@@ -474,6 +483,7 @@ class BlueRov2ImuNode(Node):
             counters = dict(self._counters)
             self._counters.clear()
         if not counters:
+            self._silent = True
             self.get_logger().warning(
                 "No inertial MAVLink messages in the last 5 s - link down or streams "
                 "not granted by the autopilot",
@@ -483,7 +493,11 @@ class BlueRov2ImuNode(Node):
         rates = ", ".join(f"{name} {count / 5.0:.0f} Hz" for name, count in sorted(counters.items()))
         offset = self._clock_sync.offset_ns
         offset_text = f", clock offset {offset / 1e9:+.3f} s" if offset is not None else ""
-        self.get_logger().info(f"{rates}{offset_text}")
+        if self._silent:
+            self._silent = False
+            self.get_logger().info(f"Inertial MAVLink data back: {rates}{offset_text}")
+        elif self._log_rates:
+            self.get_logger().info(f"{rates}{offset_text}")
 
     def destroy_node(self) -> bool:
         self._stop.set()
@@ -504,9 +518,13 @@ def main(args=None) -> None:
     node = BlueRov2ImuNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Ctrl-C reaches every node twice: from the terminal (the whole process group)
+        # and again from ros2 launch. Ignore the second one, so the cleanup below is
+        # not interrupted halfway with a KeyboardInterrupt traceback.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
