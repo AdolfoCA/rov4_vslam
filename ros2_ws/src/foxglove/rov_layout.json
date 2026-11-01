@@ -68,9 +68,15 @@
     "Indicator!rov6": {
       "path": "/bluerov2/dvl/health.status[0].level",
       "style": "background",
-      "fallbackColor": "#e5484d",
-      "fallbackLabel": "DVL: BAD (or no health data)",
+      "fallbackColor": "#8b8d98",
+      "fallbackLabel": "DVL: no health data (dvl_health not running)",
       "rules": [
+        {
+          "operator": "=",
+          "rawValue": "2",
+          "color": "#e5484d",
+          "label": "DVL: BAD"
+        },
         {
           "operator": "=",
           "rawValue": "0",
@@ -263,9 +269,15 @@
     "Indicator!rov20": {
       "path": "/bluerov2/dvl/health.status[0].level",
       "style": "background",
-      "fallbackColor": "#e5484d",
-      "fallbackLabel": "DVL: BAD (or no health data)",
+      "fallbackColor": "#8b8d98",
+      "fallbackLabel": "DVL: no health data (dvl_health not running)",
       "rules": [
+        {
+          "operator": "=",
+          "rawValue": "2",
+          "color": "#e5484d",
+          "label": "DVL: BAD"
+        },
         {
           "operator": "=",
           "rawValue": "0",
