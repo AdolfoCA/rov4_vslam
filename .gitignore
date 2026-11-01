@@ -29,3 +29,4 @@ calibration/
 .idea/
 *.swp
 .DS_Store
+kalibr_ws/
