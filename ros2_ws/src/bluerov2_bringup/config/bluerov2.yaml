@@ -48,6 +48,10 @@
     # offset estimator, instead of stamping on arrival. Set false to stamp on arrival.
     use_mavlink_time: true
     clock_window_seconds: 30.0
+    # Constant delay of these stamps, measured by Kalibr on 2026-10-31 against the camera
+    # capture times (three pool recordings: t_imu = t_cam + 15.5-16.4 ms). Re-measure if
+    # the IMU path changes (ArduSub / BlueOS / stream rates). See imu_node.py.
+    timestamp_offset_s: -0.016
 
     # TODO(calibration): replace with values from an Allan variance run on your unit.
     # These are order-of-magnitude figures for a consumer MEMS IMU and will make any

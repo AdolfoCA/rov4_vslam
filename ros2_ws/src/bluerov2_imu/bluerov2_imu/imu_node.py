@@ -18,7 +18,16 @@ This node therefore:
 3. converts every quantity from ArduPilot's NED/FRD conventions into ROS REP-103
    ENU/FLU (see :mod:`bluerov2_imu.frames`);
 4. re-stamps messages onto the ROS clock using a minimum-filter offset estimator
-   (see :mod:`bluerov2_imu.time_sync`) rather than stamping on arrival.
+   (see :mod:`bluerov2_imu.time_sync`) rather than stamping on arrival, then adds
+   ``timestamp_offset_s``.
+
+``timestamp_offset_s`` corrects a constant delay that the offset estimator cannot see:
+the filter assumes the fastest MAVLink message arrived with no delay at all, but the
+measurement still left the Navigator, went through ArduSub and BlueOS before it. Kalibr
+measured how much (2026-10-31, three camera-IMU recordings in the pool, cameras stamped
+with their capture time): t_imu = t_cam + 15.5-16.4 ms, i.e. these stamps are ~16 ms
+late, so bluerov2.yaml sets -0.016. Every message of this node gets it (they all travel
+the same way).
 
 Published topics (relative to the node's namespace)
 ---------------------------------------------------
@@ -106,6 +115,8 @@ class BlueRov2ImuNode(Node):
 
         self.declare_parameter("use_mavlink_time", True)
         self.declare_parameter("clock_window_seconds", 30.0)
+        # Added to every stamp; see timestamp_offset_s in the module docstring.
+        self.declare_parameter("timestamp_offset_s", 0.0)
 
         self.declare_parameter("linear_acceleration_stddev", 0.05)   # m/s^2
         self.declare_parameter("angular_velocity_stddev", 0.005)     # rad/s
@@ -124,6 +135,7 @@ class BlueRov2ImuNode(Node):
         p = self.get_parameter
         self._frame_id: str = p("frame_id").value
         self._use_mavlink_time: bool = p("use_mavlink_time").value
+        self._timestamp_offset_ns = int(round(float(p("timestamp_offset_s").value) * 1e9))
         self._raw_imu_message: str = str(p("raw_imu_message").value).upper()
 
         self._accel_var = float(p("linear_acceleration_stddev").value) ** 2
@@ -460,8 +472,8 @@ class BlueRov2ImuNode(Node):
     def _stamp_ns(self, vehicle_time_ns: int) -> int:
         now_ns = self.get_clock().now().nanoseconds
         if not self._use_mavlink_time:
-            return now_ns
-        return self._clock_sync.update(vehicle_time_ns, now_ns)
+            return now_ns + self._timestamp_offset_ns
+        return self._clock_sync.update(vehicle_time_ns, now_ns) + self._timestamp_offset_ns
 
     def _to_ros_stamp(self, nanoseconds: int):
         return rclpy.time.Time(nanoseconds=nanoseconds).to_msg()
