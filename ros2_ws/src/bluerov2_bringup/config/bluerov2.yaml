@@ -100,6 +100,12 @@
     # Publish a gap rather than a confidently wrong velocity when bottom lock is lost.
     drop_invalid_velocity: true
 
+    # Stamp each velocity at the instant it describes: arrival minus the latency the DVL
+    # reports (time_of_transmission - time_of_validity, ~110 ms on our A50; pool 30/10:
+    # an AprilGrid check put the delay at 102 ms). False = stamp at arrival, as before.
+    stamp_at_validity: true
+    max_measurement_age_s: 0.5
+
 /**/camera_node:
   ros__parameters:
     # TODO(network): the BlueOS video page decides this. 5600 is the first stream.

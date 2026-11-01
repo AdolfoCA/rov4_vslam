@@ -128,6 +128,27 @@ def split_lines(buffer: bytes) -> Tuple[List[bytes], bytes]:
     return [line.strip() for line in complete if line.strip()], remainder
 
 
+def measurement_age_s(report: Dict[str, Any], max_age_s: float = 0.5) -> Optional[float]:
+    """How long before it was sent the velocity was valid [s], or None if unknown.
+
+    A velocity report carries two instrument timestamps in microseconds:
+    ``time_of_validity`` (the instant the velocity refers to) and
+    ``time_of_transmission`` (when the report left the DVL). The A50 clock is not synced
+    to the PC, so only their difference is usable: it is the processing latency, about
+    0.1 s on our unit (pool 30/10/2026: median 111 ms, 5-95% 95-173 ms; an independent
+    check of the DVL velocity against AprilGrid camera poses put the delay at 102 ms).
+    Missing, zero, negative or implausibly large values give None.
+    """
+    validity = _as_int(report.get("time_of_validity"), 0)
+    transmission = _as_int(report.get("time_of_transmission"), 0)
+    if validity <= 0 or transmission <= 0:
+        return None
+    age = (transmission - validity) * 1.0e-6
+    if not 0.0 <= age <= max_age_s:
+        return None
+    return age
+
+
 def _as_float(value: Any, default: float) -> float:
     try:
         result = float(value)

@@ -6,6 +6,7 @@ from bluerov2_dvl.protocol import (
     encode_command,
     extract_covariance,
     is_response_to,
+    measurement_age_s,
     parse_beams,
     rotate_covariance_frd_to_flu,
     rotate_vector_frd_to_flu,
@@ -180,3 +181,23 @@ def test_speed_of_sound_reference_values():
     assert abs(speed_of_sound(10.0, 35.0) - 1489.8) < 0.5
     assert abs(speed_of_sound(10.0, 0.0) - 1447.0) < 1.0
     assert speed_of_sound(10.0, 35.0, 100.0) > speed_of_sound(10.0, 35.0)
+
+
+# -- Measurement age ------------------------------------------------------------------
+
+
+def test_measurement_age_from_instrument_timestamps():
+    # 1638191471752336 - 1638191471563017 us
+    assert abs(measurement_age_s(VELOCITY_REPORT) - 0.189319) < 1e-9
+
+
+def test_measurement_age_unknown_when_fields_missing_or_zero():
+    assert measurement_age_s({}) is None
+    assert measurement_age_s({"time_of_validity": 0, "time_of_transmission": 5}) is None
+
+
+def test_measurement_age_rejects_implausible_values():
+    base = {"time_of_validity": 1_000_000}
+    assert measurement_age_s(dict(base, time_of_transmission=900_000)) is None      # negative
+    assert measurement_age_s(dict(base, time_of_transmission=2_000_000)) is None    # 1 s
+    assert measurement_age_s(dict(base, time_of_transmission=2_000_000), max_age_s=2.0) == 1.0

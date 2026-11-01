@@ -35,6 +35,16 @@ the instrument is willing to commit to.
 
 The angular block of the published TwistWithCovariance is marked unknown with a large
 diagonal, because a DVL measures no rotation at all.
+
+Timestamps
+----------
+A velocity report reaches the PC about 0.1 s after the instant it describes: the A50
+needs that long to process the ping. With ``stamp_at_validity`` (default true) every
+velocity-derived message (report, twist, altitude, and so the dead reckoning downstream)
+is stamped at arrival time minus that latency, which the instrument reports itself as
+``time_of_transmission - time_of_validity``. Only the difference is used, because the
+A50 clock is not synced to the PC. The network hop DVL -> PC (a few ms, steady) is not
+compensated. When the two fields are missing or implausible the arrival time is kept.
 """
 
 from __future__ import annotations
@@ -49,12 +59,14 @@ from typing import Any, Dict, Optional
 import rclpy
 from geometry_msgs.msg import TwistWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Range
 
 from bluerov2_dvl.protocol import (
+    measurement_age_s,
     parse_beams,
     rotate_vector_frd_to_flu,
     split_lines,
@@ -120,6 +132,10 @@ class WaterLinkedDvlNode(Node):
         # of publishing them with a large covariance. Most estimators are happier with a
         # gap than with a confidently wrong measurement, so this defaults to true.
         self.declare_parameter("drop_invalid_velocity", True)
+        # Stamp velocity reports at the instant they describe (arrival minus the latency
+        # the DVL reports), not at arrival: about 0.1 s earlier. See "Timestamps" above.
+        self.declare_parameter("stamp_at_validity", True)
+        self.declare_parameter("max_measurement_age_s", 0.5)
         # Periodic "N Hz" lines every 5 s. Off by default: the node then logs only when
         # the reports stop arriving, and once when they come back.
         self.declare_parameter("log_rates", False)
@@ -133,6 +149,9 @@ class WaterLinkedDvlNode(Node):
         self._fallback_var = float(p("fallback_velocity_stddev").value) ** 2
         self._dr_var = float(p("dead_reckoning_position_stddev").value) ** 2
         self._drop_invalid = bool(p("drop_invalid_velocity").value)
+        self._stamp_at_validity = bool(p("stamp_at_validity").value)
+        self._max_age = float(p("max_measurement_age_s").value)
+        self._age_missing_warned = False
 
         # --- Publishers --------------------------------------------------------------
         self._pub_twist = self.create_publisher(
@@ -256,7 +275,18 @@ class WaterLinkedDvlNode(Node):
     # -- Report handlers ----------------------------------------------------------
 
     def _on_velocity(self, report: Dict[str, Any]) -> None:
-        stamp = self.get_clock().now().to_msg()
+        arrival = self.get_clock().now()
+        stamp = arrival.to_msg()
+        if self._stamp_at_validity:
+            age = measurement_age_s(report, self._max_age)
+            if age is not None:
+                stamp = (arrival - Duration(nanoseconds=int(round(age * 1e9)))).to_msg()
+            elif not self._age_missing_warned:
+                self._age_missing_warned = True
+                self.get_logger().warning(
+                    "DVL report without usable time_of_validity/time_of_transmission: "
+                    "stamping at arrival (about 0.1 s late) until they are back"
+                )
 
         velocity_valid = bool(report.get("velocity_valid", False))
         if not velocity_valid:
