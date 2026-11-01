@@ -33,7 +33,8 @@ groups:
       - imu/mag                          # raw magnetometer
       - imu/pressure                     # in-hull barometer (not depth)
       - imu/temperature
-      # - imu/data                       # ArduSub's attitude estimate (processed, not raw)
+      - imu/data                         # ArduSub's attitude estimate (processed, not raw):
+                                         # reference to compare a SLAM attitude against
 
   dvl:
     enabled: true
@@ -47,9 +48,11 @@ groups:
       # - dvl/velocity                   # the velocity again, as a Twist
       # - dvl/altitude                   # the altitude again, as a Range
       # - dvl/health                     # dvl_health verdicts
-      # The DVL's own dead reckoning (its integrated position), not a measurement:
-      # - dvl/dead_reckoning
-      # - dvl/dead_reckoning_odometry
+      # The DVL's own dead reckoning (integrated position + attitude from its gyro), not a
+      # measurement: a reference for a SLAM trajectory, meaningful from the last
+      # reset_dead_reckoning on (dvl_calibrate does one).
+      - dvl/dead_reckoning
+      # - dvl/dead_reckoning_odometry      # the same, as an Odometry
 
   dead_reckoning:                        # IMU + DVL track of dead_reckoning_node
     enabled: false
