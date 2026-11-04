@@ -53,6 +53,9 @@ public:
 	void PublishLeftImg(const sensor_msgs::ImageConstPtr &img);
 	void PublishRightImg(const sensor_msgs::ImageConstPtr &img);
 	void PublishImgWithInfo(const sensor_msgs::ImageConstPtr &img);
+	// immagine destra con le coppie stereo (Foxglove); disegnata solo se qualcuno e' iscritto
+	void PublishImgWithInfoRight(const sensor_msgs::ImageConstPtr &img);
+	bool HasImgWithInfoRightSubscribers() const;
 	void PublishImgMergeCandidate(const cv::Mat &img);
 	void PublishIntegration(Atlas *pAtlas);
     void PublishLossKF(set<KeyFrame*,KFComparator> &loss_kfs);
@@ -94,6 +97,7 @@ protected:
 	image_transport::Publisher m_img_l_pub;
 	image_transport::Publisher m_img_r_pub;
 	image_transport::Publisher m_img_info_pub;
+	image_transport::Publisher m_img_info_right_pub;
 	image_transport::Publisher m_img_merge_cond_pub;
 
 	//publish qualisys path

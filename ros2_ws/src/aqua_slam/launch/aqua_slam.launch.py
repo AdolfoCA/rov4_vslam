@@ -31,9 +31,12 @@ Arguments:
     use_sim_time:=false
 
 Outputs (all under /aqua_slam/): orb_pose, orb_odom, orb_path, camera_pose,
-integration_path, sparse_map, markers, img_with_info, and the TF
+integration_path, sparse_map, markers, img_with_info (left image with the ORB
+features), img_with_info_right (right image with the stereo matches, drawn only while
+someone subscribes, e.g. Foxglove), and the TF
 aqua_slam_map -> aqua_slam_camera. Map, paths and markers appear after the DVL-gyro
 initialisation, i.e. once the vehicle has moved IMUInitTranslation metres.
+Foxglove view: ros2_ws/src/foxglove/aqua_slam_layout.json (make_aqua_slam_layout.js).
 """
 
 from launch import LaunchDescription

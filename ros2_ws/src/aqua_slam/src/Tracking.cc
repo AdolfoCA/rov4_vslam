@@ -2023,6 +2023,7 @@ void Tracking::topicPublishDVLOnly()
 	header.stamp = ros::Time::now(); // time
 	cv_bridge::CvImage img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img_with_info);
 	mpRosHandler->PublishImgWithInfo(img_bridge.toImageMsg());
+			PublishStereoRightImg();
 
 
 
@@ -2513,6 +2514,7 @@ void Tracking::Track()
 			cv_bridge::CvImage
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img_with_info);
 			mpRosHandler->PublishImgWithInfo(img_bridge.toImageMsg());
+			PublishStereoRightImg();
 
 		}
 
@@ -2883,6 +2885,7 @@ void Tracking::TrackDVLGyro()
 			cv_bridge::CvImage
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img_with_info);
 			mpRosHandler->PublishImgWithInfo(img_bridge.toImageMsg());
+			PublishStereoRightImg();
 
 		}
 
@@ -3323,6 +3326,7 @@ void Tracking::TrackKLT()
 			cv_bridge::CvImage
 				img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img_with_info);
 			mpRosHandler->PublishImgWithInfo(img_bridge.toImageMsg());
+			PublishStereoRightImg();
 
 		}
 
@@ -4939,6 +4943,17 @@ void Tracking::drawOptimizationResult()
 	cv_bridge::CvImage img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img_with_debuginfo);
 	mpRosHandler->PublishImgWithInfo(img_bridge.toImageMsg());
 
+}
+
+void Tracking::PublishStereoRightImg()
+{
+	if (!mpRosHandler->HasImgWithInfoRightSubscribers())
+		return;
+	cv::Mat img = mpFrameDrawer->DrawStereoRight();
+	std_msgs::Header header;
+	header.stamp = ros::Time::now();
+	cv_bridge::CvImage img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img);
+	mpRosHandler->PublishImgWithInfoRight(img_bridge.toImageMsg());
 }
 
 void Tracking::IntegrateDVLVelocity()

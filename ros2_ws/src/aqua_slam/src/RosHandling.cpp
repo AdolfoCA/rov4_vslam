@@ -28,6 +28,7 @@ RosHandling::RosHandling(System *pSys, LocalMapping *pLocal)
 	m_img_l_pub = image_transport::create_publisher(&n, "~/left/image_raw");
 	m_img_r_pub = image_transport::create_publisher(&n, "~/right/image_raw");
 	m_img_info_pub = image_transport::create_publisher(&n, "~/img_with_info");
+	m_img_info_right_pub = image_transport::create_publisher(&n, "~/img_with_info_right");
 	m_img_merge_cond_pub = image_transport::create_publisher(&n, "~/img_merge_cand");
 
 	mp_integration_path_pub = n.create_publisher<nav_msgs::msg::Path>("~/integration_path", 10);
@@ -73,6 +74,14 @@ void RosHandling::PublishRightImg(const sensor_msgs::ImageConstPtr &img)
 void RosHandling::PublishImgWithInfo(const sensor_msgs::ImageConstPtr &img)
 {
 	m_img_info_pub.publish(*img);
+}
+void RosHandling::PublishImgWithInfoRight(const sensor_msgs::ImageConstPtr &img)
+{
+	m_img_info_right_pub.publish(*img);
+}
+bool RosHandling::HasImgWithInfoRightSubscribers() const
+{
+	return m_img_info_right_pub.getNumSubscribers() > 0;
 }
 
 void RosHandling::PublishOrb(const Eigen::Isometry3d &T_c0_cj_orb,

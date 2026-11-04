@@ -121,6 +121,8 @@ public:
 	// a lock: AddressSanitizer caught the resulting cv::Mat double-free in Frame::isInFrustum
 	// (2026-11-04).
 	void UpdateFrameDVLGyro(const IMU::Bias &b, KeyFrame *pCurrentKeyFrame);
+	// pubblica img_with_info_right (destra con coppie stereo) se c'e' un iscritto, es. Foxglove
+	void PublishStereoRightImg();
 	KeyFrame *GetLastKeyFrame()
 	{
 		return mpLastKeyFrame;

@@ -364,6 +364,63 @@ cv::Mat FrameDrawer::DrawRightFrame()
 
 
 
+cv::Mat FrameDrawer::DrawStereoRight()
+{
+    cv::Mat im;
+    vector<cv::KeyPoint> vCurrentKeys;
+    vector<float> vuRight;
+    vector<bool> vbVO, vbMap;
+    int state;
+    {
+        unique_lock<mutex> lock(mMutex);
+        state = mState;
+        mImRight.copyTo(im);
+        vCurrentKeys = mvCurrentKeys;
+        vuRight = mvCurrentuRight;
+        if(state == Tracking::OK) {
+            vbVO = mvbVO;
+            vbMap = mvbMap;
+        }
+    }
+    if(im.channels() < 3)
+        cvtColor(im, im, cv::COLOR_GRAY2BGR);
+
+    // Stessi colori della sinistra: verde = punto della mappa, blu = punto di odometria visiva.
+    // Prima dell'inizializzazione o senza tracking: giallo = ogni coppia stereo trovata.
+    int nMap = 0, nVO = 0, nStereo = 0;
+    const float r = 5;
+    const size_t n = std::min(vCurrentKeys.size(), vuRight.size());
+    for(size_t i = 0; i < n; i++) {
+        if(vuRight[i] < 0)
+            continue;
+        nStereo++;
+        const cv::Point2f pt(vuRight[i], vCurrentKeys[i].pt.y);
+        cv::Scalar col;
+        if(state == Tracking::OK && i < vbMap.size()) {
+            if(vbMap[i]) { col = cv::Scalar(0,255,0); nMap++; }
+            else if(vbVO[i]) { col = cv::Scalar(255,0,0); nVO++; }
+            else continue;
+            cv::rectangle(im, pt - cv::Point2f(r,r), pt + cv::Point2f(r,r), col);
+            cv::circle(im, pt, 2, col, -1);
+        } else {
+            cv::circle(im, pt, 2, cv::Scalar(0,255,255), -1);
+        }
+    }
+
+    // barra di testo alta come quella della sinistra, cosi' le due immagini restano allineate
+    stringstream s;
+    s << "RIGHT (rectified) | stereo pairs: " << nStereo;
+    if(state == Tracking::OK)
+        s << ", tracked: " << nMap << " map + " << nVO << " VO";
+    int baseline = 0;
+    cv::Size textSize = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    cv::Mat imText(im.rows + textSize.height + 10, im.cols, im.type(), cv::Scalar(0,0,0));
+    im.copyTo(imText.rowRange(0, im.rows));
+    cv::putText(imText, s.str(), cv::Point(5, imText.rows - 5), cv::FONT_HERSHEY_PLAIN, 1,
+                cv::Scalar(255,255,255), 1, 8);
+    return imText;
+}
+
 void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
 {
     stringstream s;
@@ -416,6 +473,9 @@ void FrameDrawer::Update(Tracking *pTracker)
     }
     else{
         N = mvCurrentKeys.size();
+        // per DrawStereoRight (Foxglove): immagine destra rettificata e colonne delle coppie stereo
+        pTracker->mImRight.copyTo(mImRight);
+        mvCurrentuRight = pTracker->mCurrentFrame.mvuRight;
     }
 
     //cout << "Number of matches in frame: " << N << endl;

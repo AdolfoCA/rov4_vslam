@@ -48,6 +48,9 @@ public:
     // Draw last processed frame.
     cv::Mat DrawFrame(bool bOldFeatures=true);
     cv::Mat DrawRightFrame();
+    // Immagine destra rettificata con le corrispondenze stereo dei punti tracciati nella sinistra
+    // (camera pinhole rettificata: stessa riga v, colonna uRight). Per Foxglove, topic img_with_info_right.
+    cv::Mat DrawStereoRight();
 
     bool both;
 
@@ -59,6 +62,7 @@ protected:
     cv::Mat mIm, mImRight;
     int N;
     vector<cv::KeyPoint> mvCurrentKeys,mvCurrentKeysRight;
+    vector<float> mvCurrentuRight; // colonna nella destra di ogni keypoint sinistro (-1 = senza coppia stereo)
     vector<bool> mvbMap, mvbVO;
     bool mbOnlyTracking;
     int mnTracked, mnTrackedVO;
