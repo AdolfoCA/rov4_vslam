@@ -147,7 +147,10 @@ namespace ORB_SLAM3 {
         double y = xyz_trans[1];
         double z = xyz_trans[2];
 
-        auto projectJac = -pCamera->projectJac(xyz_trans);
+        // Concrete matrix, not `auto`: projectJac() returns a temporary and `auto` would keep
+        // an Eigen expression pointing at it after it is destroyed (stack-use-after-scope,
+        // found with AddressSanitizer on 2026-11-04; same line upstream).
+        Eigen::Matrix<double,2,3> projectJac = -pCamera->projectJac(xyz_trans);
 
         _jacobianOplusXi =  projectJac * T.rotation().toRotationMatrix();
 

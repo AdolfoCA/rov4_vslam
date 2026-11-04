@@ -114,6 +114,12 @@ public:
 	void InformOnlyTracking(const bool &flag);
 
 	void UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFrame *pCurrentKeyFrame);
+	// Called by LocalMapping after a DVL-IMU BA or initialisation. It only RECORDS the update
+	// (new bias + keyframe); the tracking thread applies it to mLastFrame / mCurrentFrame at the
+	// start of its next frame (ApplyPendingFrameUpdate). Upstream changed the tracker's frames
+	// directly from the LocalMapping thread while Tracking was reading their pose matrices without
+	// a lock: AddressSanitizer caught the resulting cv::Mat double-free in Frame::isInFrustum
+	// (2026-11-04).
 	void UpdateFrameDVLGyro(const IMU::Bias &b, KeyFrame *pCurrentKeyFrame);
 	KeyFrame *GetLastKeyFrame()
 	{
@@ -354,9 +360,18 @@ protected:
 	std::vector<IMU::GyroDvlPoint> mvGyroDVLFromLastFrame;
 	std::mutex mMutexImuQueue;
 
-	// Imu calibration parameters
+	// Imu calibration parameters. Read through GetExtrinsicPara() (locked copy) only:
+	// SetExtrinsicPara() is called from LocalMapping.
 	IMU::Calib *mpImuCalib;
 	std::mutex mMutexExtrinsic;
+
+	// Frame update requested by LocalMapping (UpdateFrameDVLGyro), applied by the tracking thread.
+	void ApplyPendingFrameUpdate();
+	void ApplyFrameDVLGyroUpdate(const IMU::Bias &b, KeyFrame *pCurrentKeyFrame);
+	std::mutex mPendingFrameUpdateMutex;
+	bool mbPendingFrameUpdate = false;
+	IMU::Bias mPendingBias;
+	KeyFrame *mpPendingKF = nullptr;
 
 	// Last Bias Estimation (at keyframe creation)
 	std::shared_mutex mBiasMutex;

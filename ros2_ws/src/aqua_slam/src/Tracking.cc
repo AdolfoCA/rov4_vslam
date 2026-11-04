@@ -1994,12 +1994,12 @@ void Tracking::topicPublishDVLOnly()
 	cv::Mat T_c_w = mCurrentFrame.mTcw.clone();
 
 	Eigen::Isometry3d T_dvl_camera;
-	cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_camera.matrix());
+	cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_camera.matrix());
 
 //    Eigen::Isometry3d T_cj_c0=Eigen::Isometry3d::Identity();
 //    cv::cv2eigen(T_c_w, T_cj_c0.matrix());
 	Eigen::Isometry3d T_c0_cj;
-	cv::Mat T_d_c_cv = mpImuCalib->mT_dvl_c;
+	cv::Mat T_d_c_cv = GetExtrinsicPara().mT_dvl_c;
 	Eigen::Isometry3d T_d_c;
 	cv::cv2eigen(T_d_c_cv, T_d_c.matrix());
 
@@ -2491,7 +2491,7 @@ void Tracking::Track()
 			cv::cv2eigen(current_pose, T_cj_c0.matrix());
 			Eigen::Isometry3d T_c0_cj = T_cj_c0.inverse();
 			Eigen::Isometry3d T_dvl_camera;
-			cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_camera.matrix());
+			cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_camera.matrix());
 			Eigen::Isometry3d T_c0_cj_camera;
 			T_c0_cj_camera.matrix() = T_c0_cj.matrix().replicate(1, 1);
 			Eigen::Isometry3d T_c0_cj_orb = mT_c_cm * T_c0_cj * mT_c_cm.inverse();
@@ -2499,7 +2499,7 @@ void Tracking::Track()
 			Eigen::Isometry3d T_e0_ej_ekf = mCurrentFrame.mT_e0_ej;
 			mCurrentFrame = cur_frame_backup;
 
-			cv::Mat T_d_c_cv = mpImuCalib->mT_dvl_c;
+			cv::Mat T_d_c_cv = GetExtrinsicPara().mT_dvl_c;
 			Eigen::Isometry3d T_d_c;
 			cv::cv2eigen(T_d_c_cv, T_d_c.matrix());
 			Eigen::Isometry3d T_d0_cj = T_d_c * T_c0_cj;
@@ -2531,7 +2531,7 @@ void Tracking::Track()
 				cv::cv2eigen(mVelocity, T_ci_cj.matrix());
 				T_ci_cj = T_ci_cj.inverse();
 				Eigen::Isometry3d T_dvl_c = Eigen::Isometry3d::Identity();
-				cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_c.matrix());
+				cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_c.matrix());
 				Eigen::Isometry3d T_di_dj = T_dvl_c * T_ci_cj * T_dvl_c.inverse();
 				float dt = mCurrentFrame.mTimeStamp - mLastFrame.mTimeStamp;
 				Eigen::Vector3d v_di
@@ -2707,6 +2707,7 @@ void Tracking::TrackDVLGyro()
 		pCurrentMap->SetLastMapChange(nCurMapChangeIndex);
 		mbMapUpdated = true;
 	}
+    ApplyPendingFrameUpdate();   // frame update requested by LocalMapping, applied on this thread
     PreintegrateDvlGro3();
 
 	// Initialization
@@ -2860,7 +2861,7 @@ void Tracking::TrackDVLGyro()
 			cv::cv2eigen(current_pose, T_cj_c0.matrix());
 			Eigen::Isometry3d T_c0_cj = T_cj_c0.inverse();
 			Eigen::Isometry3d T_dvl_camera;
-			cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_camera.matrix());
+			cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_camera.matrix());
 			Eigen::Isometry3d T_c0_cj_camera;
 			T_c0_cj_camera.matrix() = T_c0_cj.matrix().replicate(1, 1);
 			Eigen::Isometry3d T_c0_cj_orb = mT_c_cm * T_c0_cj * mT_c_cm.inverse();
@@ -2868,7 +2869,7 @@ void Tracking::TrackDVLGyro()
 			Eigen::Isometry3d T_e0_ej_ekf = mCurrentFrame.mT_e0_ej;
 			mCurrentFrame = cur_frame_backup;
 
-			cv::Mat T_d_c_cv = mpImuCalib->mT_dvl_c;
+			cv::Mat T_d_c_cv = GetExtrinsicPara().mT_dvl_c;
 			Eigen::Isometry3d T_d_c;
 			cv::cv2eigen(T_d_c_cv, T_d_c.matrix());
 			Eigen::Isometry3d T_d0_cj = T_d_c * T_c0_cj;
@@ -2900,7 +2901,7 @@ void Tracking::TrackDVLGyro()
 				cv::cv2eigen(mVelocity, T_ci_cj.matrix());
 				T_ci_cj = T_ci_cj.inverse();
 				Eigen::Isometry3d T_dvl_c = Eigen::Isometry3d::Identity();
-				cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_c.matrix());
+				cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_c.matrix());
 				Eigen::Isometry3d T_di_dj = T_dvl_c * T_ci_cj * T_dvl_c.inverse();
 				float dt = mCurrentFrame.mTimeStamp - mLastFrame.mTimeStamp;
 				Eigen::Vector3d v_di
@@ -3300,7 +3301,7 @@ void Tracking::TrackKLT()
 			cv::cv2eigen(current_pose, T_cj_c0.matrix());
 			Eigen::Isometry3d T_c0_cj = T_cj_c0.inverse();
 			Eigen::Isometry3d T_dvl_camera;
-			cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_camera.matrix());
+			cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_camera.matrix());
 			Eigen::Isometry3d T_c0_cj_camera;
 			T_c0_cj_camera.matrix() = T_c0_cj.matrix().replicate(1, 1);
 			Eigen::Isometry3d T_c0_cj_orb = mT_c_cm * T_c0_cj * mT_c_cm.inverse();
@@ -3308,7 +3309,7 @@ void Tracking::TrackKLT()
 			Eigen::Isometry3d T_e0_ej_ekf = mCurrentFrame.mT_e0_ej;
 			mCurrentFrame = cur_frame_backup;
 
-			cv::Mat T_d_c_cv = mpImuCalib->mT_dvl_c;
+			cv::Mat T_d_c_cv = GetExtrinsicPara().mT_dvl_c;
 			Eigen::Isometry3d T_d_c;
 			cv::cv2eigen(T_d_c_cv, T_d_c.matrix());
 			Eigen::Isometry3d T_d0_cj = T_d_c * T_c0_cj;
@@ -3340,7 +3341,7 @@ void Tracking::TrackKLT()
 				cv::cv2eigen(mVelocity, T_ci_cj.matrix());
 				T_ci_cj = T_ci_cj.inverse();
 				Eigen::Isometry3d T_dvl_c = Eigen::Isometry3d::Identity();
-				cv::cv2eigen(mpImuCalib->mT_dvl_c, T_dvl_c.matrix());
+				cv::cv2eigen(GetExtrinsicPara().mT_dvl_c, T_dvl_c.matrix());
 				Eigen::Isometry3d T_di_dj = T_dvl_c * T_ci_cj * T_dvl_c.inverse();
 				float dt = mCurrentFrame.mTimeStamp - mLastFrame.mTimeStamp;
 				Eigen::Vector3d v_di
@@ -6413,6 +6414,38 @@ void Tracking::UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFrame *pCurr
 
 void Tracking::UpdateFrameDVLGyro(const IMU::Bias &b, KeyFrame *pCurrentKeyFrame)
 {
+	// LocalMapping thread: record the request only (see Tracking.h).
+	{
+		std::unique_lock<std::shared_mutex> lock(mBiasMutex);
+		mLastBias = b;
+	}
+	std::lock_guard<std::mutex> lock(mPendingFrameUpdateMutex);
+	mbPendingFrameUpdate = true;
+	mPendingBias = b;
+	mpPendingKF = pCurrentKeyFrame;
+}
+
+void Tracking::ApplyPendingFrameUpdate()
+{
+	// Tracking thread: apply the latest request, if any.
+	IMU::Bias b;
+	KeyFrame *pKF;
+	{
+		std::lock_guard<std::mutex> lock(mPendingFrameUpdateMutex);
+		if (!mbPendingFrameUpdate) {
+			return;
+		}
+		mbPendingFrameUpdate = false;
+		b = mPendingBias;
+		pKF = mpPendingKF;
+	}
+	ApplyFrameDVLGyroUpdate(b, pKF);
+}
+
+// Upstream body of UpdateFrameDVLGyro, unchanged; now runs on the tracking thread. It only
+// dereferences pCurrentKeyFrame after checking that a frame still points to it.
+void Tracking::ApplyFrameDVLGyroUpdate(const IMU::Bias &b, KeyFrame *pCurrentKeyFrame)
+{
 	{
 		std::unique_lock<std::shared_mutex> lock(mBiasMutex);
 		mLastBias = b;
@@ -6800,9 +6833,10 @@ IMU::Calib Tracking::GetExtrinsicPara()
 }
 void Tracking::SetExtrinsicPara(Calib &calib)
 {
+	// In place under the lock: upstream deleted and re-created the object while the tracking thread
+	// read mpImuCalib->... without the lock (use after free). Readers use GetExtrinsicPara().
 	std::lock_guard<std::mutex> lock(mMutexExtrinsic);
-	delete mpImuCalib;
-	mpImuCalib = new IMU::Calib(calib);
+	*mpImuCalib = calib;
 }
 
 DVLGroPreIntegration *Tracking::getLossIntegrationRef()
