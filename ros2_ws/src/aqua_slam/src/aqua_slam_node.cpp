@@ -25,13 +25,24 @@
  *    35 MB/s, until the machine ran out of RAM, and the estimate fell further behind
  *    real time each second. Now the oldest frames are dropped instead; the IMU is
  *    buffered by time, so no inertial data is lost with them.
+ *  - The tracking rate can be lowered below the camera rate (parameter process_rate_hz):
+ *    one stereo pair is kept per 1/rate interval of the left image time stamp, so 30 Hz
+ *    cameras at 20 Hz keep 2 pairs out of 3 at regular spacing. Skipped pairs are
+ *    dropped before JPEG decoding and rectification; their IMU and DVL samples stay in
+ *    the queues and go to the next processed pair. On this laptop (i7-12650H) tracking
+ *    needs ~38 ms per pair: at 30 Hz the delay grew by ~21 s every 100 s, at 20 and
+ *    15 Hz it stayed ~0.1 s with the same accuracy (pool bag, 2026-11-02).
+ *    Camera.fps in the settings must equal the processed rate: ORB-SLAM3 uses it to
+ *    decide when to insert keyframes.
  */
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <cmath>
 #include <iomanip>
+#include <limits>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -189,6 +200,11 @@ public:
 
 	size_t maxQueue = 4;
 	std::atomic<uint64_t> mDropped{0};
+
+	// Processed rate [Hz], 0 = every stereo pair. lastBucket: last kept floor(t * rate).
+	double processRateHz = 0.0;
+	long long lastBucket = std::numeric_limits<long long>::min();
+	std::atomic<uint64_t> mSkipped{0};
 };
 
 int main(int argc, char **argv)
@@ -213,6 +229,8 @@ int main(int argc, char **argv)
 	// Images waiting per camera. When tracking is slower than the cameras the oldest are
 	// dropped, so memory stays bounded and the estimate stays close to real time.
 	const int max_image_queue = node->declare_parameter<int>("max_image_queue", 4);
+	// Stereo pairs processed per second, 0 = all of them (see the notes at the top).
+	const double process_rate_hz = node->declare_parameter<double>("process_rate_hz", 0.0);
 	// read by the SLAM core (RosHandling, System, DenseMapper)
 	node->declare_parameter<string>("map_frame", "aqua_slam_map");
 	node->declare_parameter<string>("body_frame", "aqua_slam_camera");
@@ -239,6 +257,16 @@ int main(int argc, char **argv)
 	DVLGrabber dvlgb(dvl_frame == "flu");
 	ImageGrabber igb(&SLAM, &imugb, &dvlgb);
 	igb.maxQueue = static_cast<size_t>(std::max(1, max_image_queue));
+	igb.processRateHz = std::max(0.0, process_rate_hz);
+	if (igb.processRateHz > 0.0) {
+		cv::FileStorage fs(settings_path, cv::FileStorage::READ);
+		const double fps = fs["Camera.fps"].empty() ? 0.0 : static_cast<double>(fs["Camera.fps"]);
+		if (std::abs(fps - igb.processRateHz) > 0.5) {
+			RCLCPP_WARN(node->get_logger(),
+			            "process_rate_hz is %.1f but Camera.fps in %s is %.1f: keyframe timing assumes Camera.fps",
+			            igb.processRateHz, settings_path.c_str(), fps);
+		}
+	}
 
 	if (rectify) {
 		if (!igb.InitRectification(settings_path)) {
@@ -265,9 +293,13 @@ int main(int argc, char **argv)
 		node.get(), right_topic, [&igb](const ImageMsg::ConstSharedPtr &m) { igb.GrabImageRight(m); }, transport, image_qos);
 
 	RCLCPP_INFO(node->get_logger(),
-	            "AQUA-SLAM running\n  left  %s\n  right %s\n  imu   %s\n  dvl   %s (velocity in %s)\n  transport %s, rectify %s",
+	            "AQUA-SLAM running\n  left  %s\n  right %s\n  imu   %s\n  dvl   %s (velocity in %s)\n  transport %s, rectify %s\n"
+	            "  processed rate %s, image queue %zu",
 	            left_topic.c_str(), right_topic.c_str(), imu_topic.c_str(), dvl_topic.c_str(), dvl_frame.c_str(),
-	            transport.c_str(), rectify ? "on" : "off");
+	            transport.c_str(), rectify ? "on" : "off",
+	            igb.processRateHz > 0.0 ? (std::to_string(static_cast<int>(std::lround(igb.processRateHz))) + " Hz").c_str()
+	                                    : "every pair",
+	            igb.maxQueue);
 
 	std::thread sync_thread(&ImageGrabber::SyncWithImu, &igb);
 
@@ -385,6 +417,25 @@ void ImageGrabber::SyncWithImu()
 		if (!have_data) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			continue;
+		}
+
+		// Lower processed rate: keep one pair per 1/rate interval of the left time stamp.
+		// Skipped pairs go before decoding; their IMU/DVL samples stay for the next pair.
+		if (processRateHz > 0.0) {
+			const long long bucket = static_cast<long long>(std::floor(tImLeft * processRateHz));
+			if (bucket <= lastBucket) {
+				{
+					std::lock_guard<std::mutex> lock(mBufMutexLeft);
+					imgLeftBuf.pop();
+				}
+				{
+					std::lock_guard<std::mutex> lock(mBufMutexRight);
+					imgRightBuf.pop();
+				}
+				++mSkipped;
+				continue;
+			}
+			lastBucket = bucket;
 		}
 
 		{

@@ -1,0 +1,226 @@
+%YAML:1.0
+# BlueROV2 Heavy, rov4_vslam: generato da rov4_vslam/data/aqua_slam/converti_per_aqua.py
+# per il port ROS 2 (ros2_ws/src/aqua_slam), da rov4_vslam/data/aqua_slam/genera_yaml_ros2.py.
+# Calibrazioni del 30-31/10/2026 (Kalibr stereo e camera-IMU). Camera.* = camera sinistra RETTIFICATA.
+# Base: underwater_orbslam3_blue_gx5_short.yaml; cambiati camera, IMU, topic, T_gyro_c, T_dvl_c.
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# Camera calibration and distortion parameters (OpenCV)
+Camera.fx: 745.6332
+Camera.fy: 745.6332
+Camera.cx: 492.4387
+Camera.cy: 276.0383
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.bFishEye: 0
+
+Camera.width: 960
+Camera.height: 540
+
+# Camera frames per second
+Camera.fps: 20  # frequenza ELABORATA dal nodo (non quella delle camere)
+
+# stereo baseline times fx
+Camera.bf: 164.1749
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 0
+
+# Close/Far threshold. Baseline times.
+ThDepth: 35.0
+ThFarDepth: 10.0
+
+# scale image by a factor
+ImageScale: 1.0
+
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast
+ORBextractor.iniThFAST: 15
+ORBextractor.minThFAST: 3
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize:2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+# Optimization Parameters
+Optimizer.visual_lamda: 1
+Optimizer.DVL_lamda: 1
+Optimizer.DVL_lamda_debug: 1
+Optimizer.DVL_func: 1
+Optimizer.KF_init_step: 0.25
+Optimizer.KF_num_for_init: 200
+Optimizer.calibrated: 1 # 0 or 1
+Optimizer.mergingThreshold: 3
+Tracker.KFThresholdForMap: 15
+Tracker.ReLocalTime: 5
+
+
+alpha: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 1.1780, 1.1780, 1.1780, 1.1780]
+beta: !!opencv-matrix
+  rows: 4
+  cols: 1
+  dt: f
+  data: [ 0.7854, 0.7854, 0.7854, 0.7854]
+
+# IMU Parameters  -0.0539971  0.0286326
+Tbc: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ 0,  0,   1,   0.4, # real rov
+          -1,  0,   0,    0,
+          0,  -1,  0,    0.1,
+          0,  0,   0,    1 ]
+IMU.NoiseGyro: 7.10e-04  # imu.yaml (Allan 17/10, x10)
+IMU.NoiseAcc: 8.20e-03
+IMU.GyroWalk: 1.10e-04
+IMU.AccWalk: 1.90e-03
+IMU.Frequency: 100
+
+VisualIntegration: 0
+
+LeftImgTopic: "/bluerov2/multicam/aux_left/image_rect"
+RightImgTopic: "/bluerov2/multicam/aux_right/image_rect"
+#LeftImgTopic: "/camera_black/img_l"
+#RightImgTopic: "/camera_black/img_r"
+ImuTopic: "/bluerov2/imu/data_raw"
+DvlTopic: "/dvl/data"  # ignorato: fisso nel codice
+EnableLoopDetection: 1
+IMUInitTranslation: 3.0 # 10.0 can calibrate well, but some sequence cannot reach 10
+IMUInitRotation: 1.0
+
+# IMU to orb
+# only use rotation
+# camera sinistra rettificata -> IMU (imu_link, FLU): Kalibr 31/10, media di stereo_imu_1-3, composta con R1 della rettifica
+T_gyro_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ -0.008824, -0.479395,  0.877555,  0.201490,
+          -0.999606, -0.019154, -0.020514,  0.127333,
+           0.026643, -0.877390, -0.479037, -0.226007,
+           0.000000,  0.000000,  0.000000,  1.000000 ]
+
+
+# camera sinistra rettificata -> DVL (frame A50: x avanti, y destra, z giu'): rotazione da T_gyro_c, posizione del DVL misurata a mano (18/10)
+T_dvl_c: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [ -0.008824, -0.479395,  0.877555,  0.291490,
+           0.999606,  0.019154,  0.020514, -0.097333,
+          -0.026643,  0.877390,  0.479037, -0.093993,
+           0.000000,  0.000000,  0.000000,  1.000000 ]
+
+
+
+
+DenseMapper:
+  enable: 0
+  P1: 200.0
+  P2: 400.0
+  correlation_window_size: 15
+  disp12MaxDiff: 0
+  disparity_range: 64
+  fullDP: false
+  min_disparity: 0
+  prefilter_cap: 31
+  prefilter_size: 9
+  speckle_range: 1
+  speckle_size: 1000
+  stereo_algorithm: 0
+  texture_threshold: 1000
+  uniqueness_ratio: 30
+  leaf_size: 0.05
+  mean_k: 5
+  std_thred: 0.1
+
+#--------------------------------------------------------------------------------------------
+# Rettifica stereo per il nodo ROS 2 (rectify:=true, immagini originali dal vivo).
+# Kalibr stereo 30/10 (stereo_30-10-camchain.yaml), cv2.stereoRectify alpha=0: le stesse matrici
+# usate da converti_per_aqua.py, quindi LEFT.P = Camera.* e T_gyro_c / T_dvl_c restano validi.
+# Con i bag gia' rettificati (bag_ros2/pool_21-144s) usare rectify:=false.
+#--------------------------------------------------------------------------------------------
+LEFT.height: 540
+LEFT.width: 960
+LEFT.D: !!opencv-matrix
+   rows: 1
+   cols: 4
+   dt: d
+   data: [ -0.2912296065, 0.1030628103, -0.0002758641025, -9.825616317e-05 ]
+LEFT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 726.0991741, 0, 478.8952546, 0, 726.82937, 271.6881844, 0, 0, 1 ]
+LEFT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.9999645535, -0.005097093367, -0.006701599274, 0.00521241464, 0.9998366762, 0.01730467359, 0.006612301207, -0.01733899171, 0.9998278036 ]
+LEFT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 745.6331647, 0, 492.4386978, 0, 0, 745.6331647, 276.0382843, 0, 0, 0, 1, 0 ]
+
+RIGHT.height: 540
+RIGHT.width: 960
+RIGHT.D: !!opencv-matrix
+   rows: 1
+   cols: 4
+   dt: d
+   data: [ -0.2898026642, 0.1013151911, 0.0003029190426, -0.000277840147 ]
+RIGHT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 722.635231, 0, 479.8543705, 0, 723.1553502, 277.1636291, 0, 0, 1 ]
+RIGHT.R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.9998034014, -0.01145659965, -0.01618347791, 0.01117453681, 0.999785931, -0.01741326785, 0.01637951037, 0.01722900156, 0.9997173966 ]
+RIGHT.P: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 745.6331647, 0, 492.4386978, -164.1748532, 0, 745.6331647, 276.0382843, 0, 0, 0, 1, 0 ]
