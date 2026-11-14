@@ -21,8 +21,11 @@ Arguments:
     dvl_velocity_frame:=flu   flu if bluerov2_dvl has rotate_to_flu (default), else frd
     vocabulary:=<file>        ORB vocabulary (default /opt/aqua_slam/Vocabulary/ORBvoc.txt)
     log_dir:=                 directory for the per-frame debug log (empty = off)
-    max_image_queue:=2        images waiting per camera; older ones are dropped when
-                              tracking is slower than the cameras (keeps RAM and delay bounded)
+    max_image_queue:=8        images waiting per camera; older ones are dropped when
+                              tracking is slower than the cameras (keeps RAM and delay bounded).
+                              8 covers the ~250-290 ms stall of the Full BA after the DVL-IMU
+                              init (~4 frames at 15 Hz): with 2 those frames were lost and some
+                              runs came out at 4-6.6 cm instead of 2.2-2.7 (pool bag, 4/11)
     process_rate_hz:=15       stereo pairs processed per second (0 = all). Must equal
                               Camera.fps in the settings. 15 Hz keeps real time on this laptop
                               also with Foxglove open on it; same accuracy as 20 Hz on the pool
@@ -69,7 +72,7 @@ def generate_launch_description() -> LaunchDescription:
             "vocabulary", default_value="/opt/aqua_slam/Vocabulary/ORBvoc.txt"
         ),
         DeclareLaunchArgument("log_dir", default_value=""),
-        DeclareLaunchArgument("max_image_queue", default_value="2"),
+        DeclareLaunchArgument("max_image_queue", default_value="8"),
         DeclareLaunchArgument("process_rate_hz", default_value="15"),
         DeclareLaunchArgument(
             "traj_path", default_value="/home/rosdev/data/aqua_slam_keyframes.txt"

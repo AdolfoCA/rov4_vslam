@@ -1687,6 +1687,10 @@ void LocalMapping::InitializeDvlIMU()
 	std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
     auto all_kf = mpAtlas->GetAllKeyFrames();
+    // Diagnostics (2026-11-04): which branch below is taken decides whether a Full BA runs.
+    ROS_INFO_STREAM("DVL-IMU init: calibration avg error " << clib_avg_error
+                    << " (thresholds 0.01 / 0.1), keyframes " << all_kf.size()
+                    << ", travel t " << dis.first << " R " << dis.second);
     if(clib_avg_error<0.01&&(all_kf.size()>20)){
         unique_lock<shared_timed_mutex> lock(pCurMap->mMutexMapUpdate);
         ROS_INFO_STREAM("init avg error<100, avg err < 0.01");
@@ -1721,6 +1725,9 @@ void LocalMapping::InitializeDvlIMU()
         // FullBA();
         return;
     }
+    // Upstream threshold 0.1, kept. On the pool bag the init error lands at 0.09-0.19, so the
+    // Full BA runs in about half of the runs; tried 0.2 (always Full BA) on 2026-11-04: the two runs
+    // with the highest init error (0.15, 0.19) came out worse (3.1 cm vs 2.2-2.5), so back to 0.1.
     else if(clib_avg_error<0.1){
         unique_lock<shared_timed_mutex> lock(pCurMap->mMutexMapUpdate);
         ROS_INFO_STREAM("init motion is enough");
@@ -1777,6 +1784,9 @@ void LocalMapping::RefineGravityDvlIMU()
 
 void LocalMapping::FullBA()
 {
+    // Diagnostics (2026-11-04): after the DVL-IMU init this runs with the map-update mutex held,
+    // so its duration is how long tracking waits.
+    const auto t_start = std::chrono::steady_clock::now();
     DvlGyroOptimizer::FullDVLIMUBundleAdjustment(mpAtlas,
                                                  mpCurrentKeyFrame,
                                                  &mbAbortBA,
@@ -1784,6 +1794,8 @@ void LocalMapping::FullBA()
                                                  10,
                                                  mpTracker->mlamda_DVL,
                                                  mpTracker->mlamda_visual);
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_start).count();
+    ROS_INFO_STREAM("Full BA took " << ms << " ms, " << mpAtlas->GetAllKeyFrames().size() << " keyframes");
 }
 
 std::pair<double,double> LocalMapping::GetTravelDistance()
