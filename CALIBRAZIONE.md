@@ -1,5 +1,8 @@
 # Calibrazione — cosa serve per un bag compatibile con AQUA-SLAM
 
+> **Nota del 14/11/2026:** i dati sono ora sull'SSD KODAK (`/media/andrea/KODAK/Andrea/`). I bag del 15/10, 20/10, 23/10, 25/10 (kalibr `sessione2/3`), le prove del 26/10, `prova_pipeline_30-10` e le conversioni `01_November` / `02_November` sono stati eliminati: i percorsi che li citano qui sotto sono storici.
+
+
 Obiettivo: arrivare a un `.bag` ROS 1 che AQUA-SLAM (`stereo_dvl2`) possa usare come
 `Structure_Easy.bag`, più uno yaml con i parametri del **nostro** ROV.
 
@@ -26,7 +29,7 @@ Serve per AQUA-SLAM, ma anche per Kalibr e per `allan_variance_ros`, che sono RO
 - [x] **Per Kalibr (25/10):** `data/calibrazione/stereo_e_imu/02_converti_ros1.py` converte
       immagini (JPEG originali, `CompressedImage`) e IMU in un `.bag` ROS 1 con la libreria
       `rosbags`, senza ROS 1. Stessi nomi di topic dell'originale. Verificato con i lettori di
-      Kalibr. I bag stanno sull'SSD, `PortableSSD/Andrea/kalibr/`.
+      Kalibr. I bag stanno sull'SSD, `KODAK/Andrea/kalibr/`.
 - [ ] **Per AQUA-SLAM:** stesso script da estendere con DVL, formato delle immagini e
       rettificazione (punti sotto).
 - [ ] Convertire MCAP/CDR in `.bag` ROS 1.
@@ -66,7 +69,7 @@ Passo passo:
 
 ### Risultato (T0, 17/10/2026) ✅
 
-**Registrazione:** `/media/andrea/PortableSSD/Andrea/imu_fermo` (SSD esterno), 15:11 → 17:30,
+**Registrazione:** `/media/andrea/KODAK/Andrea/imu_fermo` (SSD esterno), 15:11 → 17:30,
 **138 min**, 829 145 campioni a 100 Hz, ne mancano 7 (0,001%). ROV a terra, fermo, disarmato.
 
 **Temperatura IMU:** 30 → 57,5 °C. Sale in fretta nei primi 30 min, poi lentamente; quasi
@@ -117,9 +120,9 @@ sinistra↔destra (baseline → `Camera.bf`).
 ### Risultato (Kalibr, 31/10/2026) ✅ — coppia stereo, camera destra nuova
 
 Registrazioni del 30/10 in piscina con la pipeline nostra (timestamp di cattura, coppie esatte):
-`PortableSSD/Andrea/Pool/30_October/stereo_1`, `stereo_2`, `stereo_3` (2, 3,5 e 3,5 min; target
+`KODAK/Andrea/Pool/30_October/stereo_1`, `stereo_2`, `stereo_3` (2, 3,5 e 3,5 min; target
 fermo, ROV guidato con il joystick per coprire tutta l'immagine), unite in un solo bag ROS 1
-(`PortableSSD/Andrea/kalibr/stereo_30-10.bag`). Copertura controllata prima con
+(`KODAK/Andrea/kalibr/stereo_30-10.bag`). Copertura controllata prima con
 `stereo_e_imu/04_controllo_aprilgrid.py`. Kalibr `kalibr_calibrate_cameras`, pinhole-radtan,
 `--bag-freq 2`: 1738 viste estratte, **126 coppie tenute**. File e comando:
 `data/calibrazione/stereo_e_imu/kalibr_stereo_30-10/` (`lancia.sh`).
@@ -150,7 +153,7 @@ Camchain (da passare al passo 4 e allo yaml di AQUA-SLAM):
 | 25/10 | Kalibr, solo camera sinistra, `stereo_e_imu/kalibr_camera_sx/` | errore di riproiezione circa 0,18 px (OpenCV 1,6 px) |
 | **26/10** | **camera destra sostituita** (la vecchia era poco nitida: problema ottico, dimostrato con lo scambio degli stream il 23/10) | ❌ **da rifare in acqua**, con il target |
 
-Controlli sulla camera nuova (26/10, in aria, `PortableSSD/Andrea/prova_camere_aria`, `prova_lab_aria`):
+Controlli sulla camera nuova (26/10, in aria, `KODAK/Andrea/prova_camere_aria`, `prova_lab_aria`):
 - nitidezza destra/sinistra **0,91-0,95** (camera vecchia: 0,35-0,50), impostazioni `v4l2-ctl` identiche;
 - montata **circa 4° più inclinata in verticale e circa 3,7° in orizzontale** rispetto alla vecchia
   (scarto verticale grezzo −35 px contro +16 px). L'hardware resta così: la rettificazione lo
@@ -185,7 +188,7 @@ Domande aperte (risolte il 30-31/10): video in acqua, 960x540 come lo stream, co
 - [x] **Verificato il 26/10: le camere aux scattano insieme**, sfasamento **sotto 1-2 ms**
       (`frame_sync = 1` su tutte le camere). Misura: oggetto mosso in verticale davanti alle
       camere; lo scarto verticale sinistra-destra non cresce con la velocità (5466 punti in
-      movimento, retta piatta: +0,1/+0,3 ms). `PortableSSD/Andrea/prova_sync/`.
+      movimento, retta piatta: +0,1/+0,3 ms). `KODAK/Andrea/prova_sync/`.
   - Gli scarti di ±15 ms visti nei timestamp di arrivo (e l'ipotesi del 25/10 di camere sfasate
     dopo un riavvio) venivano dal percorso rete/driver, non dagli scatti.
   - Con i timestamp RTP (passo 6) resta tra sinistra e destra uno scarto **costante** di circa
@@ -382,9 +385,9 @@ Camere:
 - [x] **Timestamp RTP nel driver (26/10).** Verifiche fatte prima:
   - cattura dei pacchetti di rete (60 s): l'RTP avanza di **3000 tick (33,333 ms) esatti** per
     frame, nessun frame perso, segue il tempo reale entro pochi ppm; l'arrivo sul PC ha 3-4 ms di
-    jitter. `PortableSSD/Andrea/prova_rtp/rtp_60s.pcap`.
+    jitter. `KODAK/Andrea/prova_rtp/rtp_60s.pcap`.
   - con il driver nuovo (40 s): intervalli **33,33 ms esatti**, jitter **0,00 ms** (prima 4-6 ms).
-    `PortableSSD/Andrea/prova_rtp/driver_rtp_40s`.
+    `KODAK/Andrea/prova_rtp/driver_rtp_40s`.
   - Come funziona: `rtpjitterbuffer mode=none` (PTS dai soli timestamp RTP), PTS portato
     nell'orologio ROS con un offset che segue il ritardo minimo di arrivo e si adatta lentamente
     alle derive (`rtp_offset_drift_us_per_s`). Topic diagnostico per camera:
