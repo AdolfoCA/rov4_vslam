@@ -138,9 +138,12 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, vector<Ke
 		//TODO We set 2 KFs to fixed to avoid a degree of freedom in scale
 		list<KeyFrame *>::iterator lit = lLocalKeyFrames.begin();
 		int lowerId = pKF->mnId;
-		KeyFrame *pLowerKf;
+		// nullptr (2026-11-14): left uninitialised upstream. Right after a new map (e.g. after a tracking
+		// loss) there may be no older local keyframe, and the garbage pointer was added to the fixed
+		// cameras: GetPose() on it -> segfault in Converter::toSE3Quat (live pool run, 10/11).
+		KeyFrame *pLowerKf = nullptr;
 		int secondLowerId = pKF->mnId;
-		KeyFrame *pSecondLowerKF;
+		KeyFrame *pSecondLowerKF = nullptr;
 
 		for (; lit != lLocalKeyFrames.end(); lit++) {
 			KeyFrame *pKFi = *lit;
@@ -157,10 +160,13 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, vector<Ke
 				pSecondLowerKF = pKFi;
 			}
 		}
-		lFixedCameras.push_back(pLowerKf);
-		lLocalKeyFrames.remove(pLowerKf);
-		num_fixedKF++;
-		if (num_fixedKF < 2) {
+		// add only the keyframes actually found
+		if (pLowerKf) {
+			lFixedCameras.push_back(pLowerKf);
+			lLocalKeyFrames.remove(pLowerKf);
+			num_fixedKF++;
+		}
+		if (num_fixedKF < 2 && pSecondLowerKF) {
 			lFixedCameras.push_back(pSecondLowerKF);
 			lLocalKeyFrames.remove(pSecondLowerKF);
 			num_fixedKF++;
@@ -638,9 +644,12 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
 		//TODO We set 2 KFs to fixed to avoid a degree of freedom in scale
 		list<KeyFrame *>::iterator lit = lLocalKeyFrames.begin();
 		int lowerId = pKF->mnId;
-		KeyFrame *pLowerKf;
+		// nullptr (2026-11-14): left uninitialised upstream. Right after a new map (e.g. after a tracking
+		// loss) there may be no older local keyframe, and the garbage pointer was added to the fixed
+		// cameras: GetPose() on it -> segfault in Converter::toSE3Quat (live pool run, 10/11).
+		KeyFrame *pLowerKf = nullptr;
 		int secondLowerId = pKF->mnId;
-		KeyFrame *pSecondLowerKF;
+		KeyFrame *pSecondLowerKF = nullptr;
 
 		for (; lit != lLocalKeyFrames.end(); lit++) {
 			KeyFrame *pKFi = *lit;
@@ -660,10 +669,13 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool *pbStopFlag, Map *pMap
 				pSecondLowerKF = pKFi;
 			}
 		}
-		lFixedCameras.push_back(pLowerKf);
-		lLocalKeyFrames.remove(pLowerKf);
-		num_fixedKF++;
-		if (num_fixedKF < 2) {
+		// add only the keyframes actually found
+		if (pLowerKf) {
+			lFixedCameras.push_back(pLowerKf);
+			lLocalKeyFrames.remove(pLowerKf);
+			num_fixedKF++;
+		}
+		if (num_fixedKF < 2 && pSecondLowerKF) {
 			lFixedCameras.push_back(pSecondLowerKF);
 			lLocalKeyFrames.remove(pSecondLowerKF);
 			num_fixedKF++;
