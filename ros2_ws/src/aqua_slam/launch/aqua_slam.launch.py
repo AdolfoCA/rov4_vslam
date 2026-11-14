@@ -26,6 +26,8 @@ Arguments:
                               8 covers the ~250-290 ms stall of the Full BA after the DVL-IMU
                               init (~4 frames at 15 Hz): with 2 those frames were lost and some
                               runs came out at 4-6.6 cm instead of 2.2-2.7 (pool bag, 4/11)
+    dvl_min_altitude:=0.3     DVL reports below this altitude [m] are not used (0 = keep all),
+                              as the ROS 1 converter did for every validated run
     process_rate_hz:=15       stereo pairs processed per second (0 = all). Must equal
                               Camera.fps in the settings. 15 Hz keeps real time on this laptop
                               also with Foxglove open on it; same accuracy as 20 Hz on the pool
@@ -74,6 +76,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("log_dir", default_value=""),
         DeclareLaunchArgument("max_image_queue", default_value="8"),
         DeclareLaunchArgument("process_rate_hz", default_value="15"),
+        DeclareLaunchArgument("dvl_min_altitude", default_value="0.3"),
         DeclareLaunchArgument(
             "traj_path", default_value="/home/rosdev/data/aqua_slam_keyframes.txt"
         ),
@@ -102,6 +105,9 @@ def generate_launch_description() -> LaunchDescription:
                 ),
                 "process_rate_hz": ParameterValue(
                     LaunchConfiguration("process_rate_hz"), value_type=float
+                ),
+                "dvl_min_altitude": ParameterValue(
+                    LaunchConfiguration("dvl_min_altitude"), value_type=float
                 ),
                 "traj_path": LaunchConfiguration("traj_path"),
                 "use_sim_time": ParameterValue(

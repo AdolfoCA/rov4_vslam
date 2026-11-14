@@ -201,6 +201,13 @@ public:
 	size_t maxQueue = 4;
 	std::atomic<uint64_t> mDropped{0};
 
+	// DVL reports below this altitude [m] are skipped, like velocity_valid == false. Within a few
+	// tens of cm of the bottom the A50 still flags most reports valid, but they are unreliable
+	// (pool, 10/11: at 3-10 cm 70-85% "valid", its own dead reckoning jumping up to 54 cm).
+	// The ROS 1 converter (converti_per_aqua.py) used the same 0.3 m cut for every validated run.
+	double dvlMinAltitude = 0.3;
+	std::atomic<uint64_t> mDvlLowAltitude{0};
+
 	// Processed rate [Hz], 0 = every stereo pair. lastBucket: last kept floor(t * rate).
 	double processRateHz = 0.0;
 	long long lastBucket = std::numeric_limits<long long>::min();
@@ -231,6 +238,8 @@ int main(int argc, char **argv)
 	const int max_image_queue = node->declare_parameter<int>("max_image_queue", 4);
 	// Stereo pairs processed per second, 0 = all of them (see the notes at the top).
 	const double process_rate_hz = node->declare_parameter<double>("process_rate_hz", 0.0);
+	// DVL reports below this altitude [m] are not used (0 = no altitude cut).
+	const double dvl_min_altitude = node->declare_parameter<double>("dvl_min_altitude", 0.3);
 	// read by the SLAM core (RosHandling, System, DenseMapper)
 	node->declare_parameter<string>("map_frame", "aqua_slam_map");
 	node->declare_parameter<string>("body_frame", "aqua_slam_camera");
@@ -258,6 +267,7 @@ int main(int argc, char **argv)
 	ImageGrabber igb(&SLAM, &imugb, &dvlgb);
 	igb.maxQueue = static_cast<size_t>(std::max(1, max_image_queue));
 	igb.processRateHz = std::max(0.0, process_rate_hz);
+	igb.dvlMinAltitude = std::max(0.0, dvl_min_altitude);
 	if (igb.processRateHz > 0.0) {
 		cv::FileStorage fs(settings_path, cv::FileStorage::READ);
 		const double fps = fs["Camera.fps"].empty() ? 0.0 : static_cast<double>(fs["Camera.fps"]);
@@ -294,17 +304,22 @@ int main(int argc, char **argv)
 
 	RCLCPP_INFO(node->get_logger(),
 	            "AQUA-SLAM running\n  left  %s\n  right %s\n  imu   %s\n  dvl   %s (velocity in %s)\n  transport %s, rectify %s\n"
-	            "  processed rate %s, image queue %zu",
+	            "  processed rate %s, image queue %zu, DVL min altitude %.2f m",
 	            left_topic.c_str(), right_topic.c_str(), imu_topic.c_str(), dvl_topic.c_str(), dvl_frame.c_str(),
 	            transport.c_str(), rectify ? "on" : "off",
 	            igb.processRateHz > 0.0 ? (std::to_string(static_cast<int>(std::lround(igb.processRateHz))) + " Hz").c_str()
 	                                    : "every pair",
-	            igb.maxQueue);
+	            igb.maxQueue, igb.dvlMinAltitude);
 
 	std::thread sync_thread(&ImageGrabber::SyncWithImu, &igb);
 
 	// Report dropped frames: tracking slower than the cameras shows up here, not as RAM.
 	auto drop_timer = node->create_wall_timer(std::chrono::seconds(10), [&igb, &node]() {
+		const uint64_t low = igb.mDvlLowAltitude.exchange(0);
+		if (low > 0) {
+			RCLCPP_WARN(node->get_logger(), "DVL below %.2f m: %llu reports not used in the last 10 s",
+			            igb.dvlMinAltitude, static_cast<unsigned long long>(low));
+		}
 		const uint64_t dropped = igb.mDropped.exchange(0);
 		if (dropped > 0) {
 			RCLCPP_WARN(node->get_logger(),
@@ -481,6 +496,11 @@ void ImageGrabber::SyncWithImu()
 				//skip bad DVL
 				if (!m->velocity_valid) {
 					BOOST_LOG_TRIVIAL(warning) << "skip bad DVL data";
+					mpDvlGb->dvlBuf.pop();
+					continue;
+				}
+				if (dvlMinAltitude > 0.0 && !(m->altitude >= dvlMinAltitude)) {   // also catches NaN / -1
+					++mDvlLowAltitude;
 					mpDvlGb->dvlBuf.pop();
 					continue;
 				}
