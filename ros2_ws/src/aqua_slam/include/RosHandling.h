@@ -16,6 +16,7 @@
 #include <octomap/ColorOcTree.h>
 #include <octomap_msgs/conversions.h>
 #include <std_srvs/srv/empty.hpp>
+#include <bluerov2_msgs/msg/tracking_info.hpp>
 
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
@@ -61,6 +62,9 @@ public:
     void PublishLossKF(set<KeyFrame*,KFComparator> &loss_kfs);
 	// void PublishGT(const Eigen::Isometry3d &T_g0_gj_gt, const ros::Time &stamp);
 	void PublishOrb(const Eigen::Isometry3d &T_c0_cj_orb, const Eigen::Isometry3d &T_d_c, const ros::Time &stamp);
+	// ~/tracking_info: tracking statistics of one frame (see bluerov2_msgs/msg/TrackingInfo.msg)
+	void PublishTrackingInfo(const ros::Time &stamp, int state, unsigned int tracked, unsigned int keypoints,
+	                         unsigned int map_id, unsigned int keyframes, unsigned int map_points);
 	void PublishCamera(const Eigen::Isometry3d &T_c0_cj_orb, const ros::Time &stamp);
 	// void PublishEkf(const Eigen::Isometry3d &T_e0_ej_ekf, const ros::Time &stamp);
 	// void PublishDensePointCloudPose(const Eigen::Isometry3d &T_c0_cmj, const ros::Time &stamp);
@@ -110,6 +114,7 @@ protected:
 
 	//publish orb pose, odometry and path, in camera frame
 	rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr mp_pose_orb_pub;
+	rclcpp::Publisher<bluerov2_msgs::msg::TrackingInfo>::SharedPtr mp_tracking_info_pub;
 	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr mp_odom_orb_pub;
 	nav_msgs::Path m_path_orb;
 	rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mp_path_orb_pub;

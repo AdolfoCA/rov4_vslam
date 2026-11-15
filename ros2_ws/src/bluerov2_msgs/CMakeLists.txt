@@ -14,6 +14,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DVLBeam.msg"
   "msg/DVLReport.msg"
   "msg/DVLDeadReckoning.msg"
+  "msg/TrackingInfo.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

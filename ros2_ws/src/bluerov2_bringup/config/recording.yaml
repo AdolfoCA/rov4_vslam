@@ -107,5 +107,13 @@ groups:
     enabled: false
     topics: [/rosout]
 
+  aqua_slam:                             # AQUA-SLAM outputs, when it runs live: aqua_slam:=true
+    enabled: false                       # no check: it never blocks a recording
+    topics:
+      - /aqua_slam/orb_pose              # camera pose of every frame
+      - /aqua_slam/tracking_info         # tracking state + matched map points per frame (quality map)
+      - /aqua_slam/sparse_map            # map points seen by >= 5 keyframes (header.stamp is 0)
+      - /aqua_slam/integration_path      # DVL + gyro only, for comparison
+
 # Anything else, recorded whenever this list is not empty.
 extra_topics: []

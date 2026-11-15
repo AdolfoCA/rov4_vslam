@@ -283,6 +283,8 @@ protected:
 	// Main tracking function. It is independent of the input sensor.
 	void Track();
 	void TrackDVLGyro();
+	// publishes ~/tracking_info for the frame just tracked (state, matched map points, map size)
+	void PublishTrackingInfo();
 	void TrackDVLImu();
 	void TrackKLT();
 

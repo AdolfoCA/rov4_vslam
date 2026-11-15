@@ -35,6 +35,7 @@ RosHandling::RosHandling(System *pSys, LocalMapping *pLocal)
 	mp_ref_integration_path_pub = n.create_publisher<nav_msgs::msg::Path>("~/ref_integration_path", 10);
 	mp_markers_pub = n.create_publisher<visualization_msgs::msg::MarkerArray>("~/markers", 10);
 	mp_pose_orb_pub = n.create_publisher<geometry_msgs::msg::PoseStamped>("~/orb_pose", 10);
+	mp_tracking_info_pub = n.create_publisher<bluerov2_msgs::msg::TrackingInfo>("~/tracking_info", 10);
 	mp_odom_orb_pub = n.create_publisher<nav_msgs::msg::Odometry>("~/orb_odom", 10);
 	mp_path_orb_pub = n.create_publisher<nav_msgs::msg::Path>("~/orb_path", 10);
 	mp_pose_orb_camera_pub = n.create_publisher<nav_msgs::msg::Odometry>("~/camera_pose", 10);
@@ -82,6 +83,22 @@ void RosHandling::PublishImgWithInfoRight(const sensor_msgs::ImageConstPtr &img)
 bool RosHandling::HasImgWithInfoRightSubscribers() const
 {
 	return m_img_info_right_pub.getNumSubscribers() > 0;
+}
+
+void RosHandling::PublishTrackingInfo(const ros::Time &stamp, int state, unsigned int tracked,
+                                      unsigned int keypoints, unsigned int map_id, unsigned int keyframes,
+                                      unsigned int map_points)
+{
+	bluerov2_msgs::msg::TrackingInfo msg;
+	msg.header.stamp = stamp;
+	msg.header.frame_id = m_map_frame;
+	msg.state = static_cast<int8_t>(state);
+	msg.tracked_map_points = tracked;
+	msg.keypoints = keypoints;
+	msg.map_id = map_id;
+	msg.keyframes_in_map = keyframes;
+	msg.map_points_in_map = map_points;
+	mp_tracking_info_pub->publish(msg);
 }
 
 void RosHandling::PublishOrb(const Eigen::Isometry3d &T_c0_cj_orb,

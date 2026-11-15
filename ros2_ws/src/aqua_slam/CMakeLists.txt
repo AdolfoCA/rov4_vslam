@@ -45,7 +45,7 @@ add_subdirectory(Thirdparty/DBoW2)
 
 set(ROS_DEPS
   rclcpp builtin_interfaces std_msgs std_srvs sensor_msgs geometry_msgs nav_msgs
-  visualization_msgs tf2_ros cv_bridge image_transport pcl_conversions octomap_msgs)
+  visualization_msgs tf2_ros cv_bridge image_transport pcl_conversions octomap_msgs bluerov2_msgs)
 
 set(CORE_INCLUDES
   ${PROJECT_SOURCE_DIR}

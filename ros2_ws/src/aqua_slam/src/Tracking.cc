@@ -1012,6 +1012,7 @@ cv::Mat Tracking::GrabImageStereoDvl(const cv::Mat &imRectLeft,
 	mCurrentFrame.mnDataset = mnNumDataset;
 
 	Track();
+	PublishTrackingInfo();
 
 	std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
@@ -1080,8 +1081,30 @@ cv::Mat Tracking::GrabImageStereoDvlgyro(const Mat &imRectLeft,
 	mCurrentFrame.mnDataset = mnNumDataset;
 
 	TrackDVLGyro();
+	PublishTrackingInfo();
 
 	return mCurrentFrame.mTcw.clone();
+}
+
+void Tracking::PublishTrackingInfo()
+{
+	if (mCurrentFrame.mTimeStamp <= 0) {   // no frame yet (the first call at start-up has stamp 0)
+		return;
+	}
+	// same count as FrameDrawer's "Matches": map points matched in this frame, outliers excluded
+	unsigned int tracked = 0;
+	for (int i = 0; i < mCurrentFrame.N; i++) {
+		MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+		if (pMP && !mCurrentFrame.mvbOutlier[i] && pMP->Observations() > 0) {
+			tracked++;
+		}
+	}
+	Map* pMap = mpAtlas->GetCurrentMap();
+	mpRosHandler->PublishTrackingInfo(ros::Time(mCurrentFrame.mTimeStamp), static_cast<int>(mState), tracked,
+	                                  static_cast<unsigned int>(mCurrentFrame.N),
+	                                  pMap ? static_cast<unsigned int>(pMap->GetId()) : 0,
+	                                  pMap ? static_cast<unsigned int>(pMap->KeyFramesInMap()) : 0,
+	                                  pMap ? static_cast<unsigned int>(pMap->MapPointsInMap()) : 0);
 }
 
 void Tracking::GrabImuData(const IMU::ImuPoint &imuMeasurement)
