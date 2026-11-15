@@ -124,6 +124,11 @@ public:
 	float mLeafSize;
 	int mMeanK;
 	float mStdThred;
+	// filters on the dense points (yaml DenseMapper.max_depth / min_confidence, with defaults)
+	float mMaxDepth = 5.0f;        // [m] points farther than this from the camera are dropped
+	float mMinConfidence = 100.0f; // WLS confidence (0-255) below which a pixel is dropped
+	// pixel counters for the log printed by Save()
+	long mNumPix = 0, mNumNoDisp = 0, mNumFar = 0, mNumLowConf = 0, mNumKept = 0;
 
 public:
 	void InsertNewKF(KeyFrame *pKF);
@@ -135,7 +140,9 @@ public:
 	void Run();
 	void Stop();
 	void Resume();
-	void Save(string path);
+	// one PCD per SLAM map (KF_map_<map id>.pcd), with the current keyframe poses, in the frame of the
+	// published sparse_map (T_w_c0 from RosHandling::UpdateMap); nothing is written for an empty map
+	void Save(string path, const Eigen::Isometry3d &T_w_c0);
 
 protected:
 	double fx, fy, cx, cy, bf;

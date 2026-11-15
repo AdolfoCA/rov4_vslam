@@ -49,6 +49,8 @@ namespace ORB_SLAM3
         mMeanK = (int) node["mean_k"];
         mStdThred = (float) node["std_thred"];
         mEnable = !((float) node["enable"] == 0);
+        if (!node["max_depth"].empty()) mMaxDepth = (float) node["max_depth"];
+        if (!node["min_confidence"].empty()) mMinConfidence = (float) node["min_confidence"];
         KeyFrame::sStoreColourImages = mEnable;
 
         mParam = DepthEstParamters(P1, P2, correlation_window_size, disp12MaxDiff, disparity_range,
@@ -201,11 +203,17 @@ namespace ORB_SLAM3
                 ROI = Rect(ROI.x * 2, ROI.y * 2, ROI.width * 2, ROI.height * 2);
             }
         }
-        Mat filtered_disp_vis;
-        getDisparityVis(left_disp, filtered_disp_vis, 1.0);
-        //	out = filtered_disp;
-        out = filtered_disp_vis.clone();
-        out_conf = conf_map.clone();
+        // Output: WLS-filtered disparity in pixels, as float (StereoBM gives fixed point x16; the original code
+        // used the 8-bit visualisation of the unfiltered disparity). Keep a pixel only where the RAW StereoBM disparity exists (it passed the texture, uniqueness and
+        // left-right checks) and the WLS result agrees with it within 1 px. WLS alone fills every rejected
+        // pixel by interpolation, which turned turbid water and particles into a "haze" of fake points.
+        cv::Mat raw_f, filt_f;
+        left_disp.convertTo(raw_f, CV_32F, 1.0 / 16.0);
+        filtered_disp.convertTo(filt_f, CV_32F, 1.0 / 16.0);
+        cv::Mat valid = (raw_f > 0.5f) & (cv::abs(filt_f - raw_f) <= 1.0f);
+        out = cv::Mat::zeros(filt_f.size(), CV_32F);
+        filt_f.copyTo(out, valid);
+        out_conf = conf_map.clone();   // CV_32F, 0..255
 
     }
 
@@ -254,57 +262,52 @@ namespace ORB_SLAM3
         img_l_rgb = img_l.clone();
         img_r_rgb = img_r.clone();
         ComputeDisp(img_l, img_r, disp, disp_conf, mParam);
-        disp_conf.convertTo(disp_conf, CV_8UC1);
+        if (disp.empty()) {
+            return;
+        }
 
         std_msgs::Header header;
         header.stamp = ros::Time::now();
-
-        cv_bridge::CvImage img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, disp);
+        cv::Mat disp_vis, conf_vis;
+        cv::Mat disp16;
+        disp.convertTo(disp16, CV_16S, 16.0);   // getDisparityVis wants the x16 fixed-point disparity
+        cv::ximgproc::getDisparityVis(disp16, disp_vis, 1.0);
+        disp_conf.convertTo(conf_vis, CV_8UC1);
+        cv_bridge::CvImage img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, disp_vis);
         mDepthPub->publish(*img_bridge.toImageMsg());
-        img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, disp_conf);
+        img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, conf_vis);
         mDepthConfPub->publish(*img_bridge.toImageMsg());
 
-        cv::Mat disp_f;
-        disp.convertTo(disp_f,CV_32F);
-        std::vector<float> vec;
-        if (disp_f.isContinuous()) {
-            vec.assign((float*) disp_f.datastart, (float*) disp_f.dataend); // Faster
-        }
-        else {
-            for (int i = 0; i < disp_f.rows; ++i) {
-                vec.insert(vec.end(), disp_f.ptr<float>(i), disp_f.ptr<float>(i) + disp_f.cols);
-            }
-        }
-        auto thred = IQR_thres(vec,0.5);
-        std::cout<<"upper: "<<(int)thred[1]<<" lower: "<<(int)thred[0]<<std::endl;
-
-	for (int x = 0; x < img_l_rgb.cols; x++) {
-		for (int y = 0; y < img_l_rgb.rows; y++) {
-			float d = static_cast<float >(disp.at<unsigned char>(y, x));
-			float d_f = disp_conf.at<float>(y, x);
-			unsigned char b = static_cast<int>(img_l_rgb.at<Vec3b>(y, x)[0]);
-			unsigned char g = static_cast<int>(img_l_rgb.at<Vec3b>(y, x)[1]);
-			unsigned char r = static_cast<int>(img_l_rgb.at<Vec3b>(y, x)[2]);
-//				cout << "disp confidence: " << d_f << endl;
-
-
-            if ((float(d) < thred[0]) || (float(d) > thred[1])) {
-			// if (d_f <= 200 || (bf / d) > 10) {
-				continue;
-			}
-			Eigen::Vector3d p_3d(0, 0, 0);
-			Project2Dto3D(x, y, d, p_3d);
-//				p_3d = T_c0_cj * p_3d;
-//				p_3d = T_c0_cj * p_3d;
-//				cout << "depth: " << (bf / d) << endl;
-			pcl::PointXYZRGB p(r, g, b);
-			p.x = p_3d.x();
-			p.y = p_3d.y();
-			p.z = p_3d.z();
-
+        const float min_disp = static_cast<float>(bf / mMaxDepth);
+        long n_pix = 0, n_nodisp = 0, n_far = 0, n_lowconf = 0;
+        for (int y = 0; y < img_l_rgb.rows; y++) {
+            for (int x = 0; x < img_l_rgb.cols; x++) {
+                n_pix++;
+                const float d = disp.at<float>(y, x);
+                if (!(d > 0.5f)) {          // no match (zero or negative disparity): would be a point at infinity
+                    n_nodisp++;
+                    continue;
+                }
+                if (d < min_disp) {         // farther than max_depth
+                    n_far++;
+                    continue;
+                }
+                if (disp_conf.at<float>(y, x) < mMinConfidence) {
+                    n_lowconf++;
+                    continue;
+                }
+                const Vec3b &c = img_l_rgb.at<Vec3b>(y, x);
+                Eigen::Vector3d p_3d(0, 0, 0);
+                Project2Dto3D(x, y, d, p_3d);
+                pcl::PointXYZRGB p(c[2], c[1], c[0]);
+                p.x = p_3d.x();
+                p.y = p_3d.y();
+                p.z = p_3d.z();
                 local_map->push_back(p);
             }
         }
+        mNumPix += n_pix; mNumNoDisp += n_nodisp; mNumFar += n_far; mNumLowConf += n_lowconf;
+        mNumKept += static_cast<long>(local_map->size());
 
         if(local_map->empty()){
             return;
@@ -367,36 +370,40 @@ namespace ORB_SLAM3
 
     void DenseMapper::Run()
     {
-        while (1) {
+        while (!mStop) {
+            if (!mEnable) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+                continue;
+            }
+            // take one keyframe under the queue lock, then compute WITHOUT holding it: the original code kept
+            // mKFQueueMutex for the whole stereo computation, so Tracking blocked in InsertNewKF and lost frames
+            KeyFrame* pKF = nullptr;
             {
-                if (!mEnable) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-                    continue;
-                }
                 std::lock_guard<std::mutex> lock(mKFQueueMutex);
                 if (!mKFQueue.empty()) {
-                    auto pKF = mKFQueue.front();
+                    pKF = mKFQueue.front();
                     mKFQueue.pop();
-                    if (pKF->isBad()) {
-                        continue;
-                    }
-                    if (pKF->GetPose().empty()) {
-                        continue;
-                    }
-                    if (mKFWithPointCloud.find(pKF) == mKFWithPointCloud.end()) {
-                        std::lock_guard<std::mutex> lock(mKFMutex);
-                        mKFWithPointCloud[pKF] = pcl::PointCloud<pcl::PointXYZRGB>();
-                        GetSubMap(pKF->imgLeft, pKF->imgRight, mKFWithPointCloud[pKF]);
-                        MergeSubMap(mKFWithPointCloud[pKF], pKF);
-                    }
                 }
             }
-
-
-            if (mStop) {
-                break;
+            if (!pKF) {
+                // sleep only when there is nothing to do (the original slept 300 ms after every keyframe,
+                // i.e. at most ~3 keyframes/s)
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                continue;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            if (pKF->isBad() || pKF->GetPose().empty()) {
+                continue;
+            }
+            {
+                std::lock_guard<std::mutex> lock(mKFMutex);
+                if (mKFWithPointCloud.find(pKF) != mKFWithPointCloud.end()) {
+                    continue;
+                }
+            }
+            pcl::PointCloud<pcl::PointXYZRGB> sub_map;
+            GetSubMap(pKF->imgLeft, pKF->imgRight, sub_map);
+            std::lock_guard<std::mutex> lock(mKFMutex);
+            mKFWithPointCloud[pKF] = sub_map;
         }
     }
 
@@ -443,14 +450,45 @@ namespace ORB_SLAM3
         //	mMapPub->publish(mGlobalMap);
     }
 
-    void DenseMapper::Save(string path)
+    void DenseMapper::Save(string path, const Eigen::Isometry3d &T_w_c0)
     {
         if (!mEnable) {
             return;
         }
-        std::lock_guard<std::mutex> lock(mDenseMapMutex);
-        string file_name = path + "KF_map.pcd";
-        pcl::io::savePCDFileBinary(file_name, mGlobalMap);
+        // one cloud per SLAM map: after a tracking loss AQUA-SLAM starts a new map with its own origin, and
+        // mixing them gives overlapping, meaningless clouds. Keyframes are placed with their CURRENT pose
+        // (after bundle adjustment), then moved into the frame of the published sparse_map.
+        std::map<long unsigned int, pcl::PointCloud<pcl::PointXYZRGB>> maps;
+        std::map<long unsigned int, int> kfs;
+        {
+            std::lock_guard<std::mutex> lock(mKFMutex);
+            for (auto &kf_cloud: mKFWithPointCloud) {
+                KeyFrame* pKF = kf_cloud.first;
+                if (pKF->isBad() || kf_cloud.second.empty()) {
+                    continue;
+                }
+                Eigen::Isometry3d T_cj_c0;
+                cv::cv2eigen(pKF->GetPose(), T_cj_c0.matrix());
+                pcl::PointCloud<pcl::PointXYZRGB> transformed;
+                pcl::transformPointCloud(kf_cloud.second, transformed, (T_w_c0 * T_cj_c0.inverse()).matrix());
+                const long unsigned int id = pKF->GetMap()->GetId();
+                maps[id] += transformed;
+                kfs[id]++;
+            }
+        }
+        ROS_INFO_STREAM("DenseMapper: pixels " << mNumPix << ", no disparity " << mNumNoDisp << ", farther than "
+                        << mMaxDepth << " m " << mNumFar << ", confidence < " << mMinConfidence << " "
+                        << mNumLowConf << ", kept (before outlier/voxel filters) " << mNumKept);
+        if (maps.empty()) {
+            ROS_WARN_STREAM("DenseMapper: dense map is empty, nothing saved");
+            return;
+        }
+        for (auto &m: maps) {
+            const string file_name = path + "KF_map_" + std::to_string(m.first) + ".pcd";
+            pcl::io::savePCDFileBinary(file_name, m.second);
+            ROS_INFO_STREAM("DenseMapper: map " << m.first << ", " << kfs[m.first] << " keyframes, "
+                            << m.second.size() << " points -> " << file_name);
+        }
     }
 
     void DenseMapper::ReconstructFromBagPose(string bag_path, string pose_path)

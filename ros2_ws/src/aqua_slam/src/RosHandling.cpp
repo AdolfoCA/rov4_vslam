@@ -817,7 +817,7 @@ void RosHandling::SavePose(const EmptySrv::Request::SharedPtr, EmptySrv::Respons
 	// mp_system->SaveKeyFrameTrajectoryTUM(out_path + "KeyFrameTrajectory_TUM_Format");
     mp_system->SaveKeyFrameTrajectory(out_path);
 	ROS_INFO_STREAM("keyframe trajectory saved to " << out_path);
-	// mp_system->mpDenseMapper->Save(out_path);
+	mp_system->mpDenseMapper->Save(out_path, mT_w_c0);
 	// mp_system->SaveAtlas(out_path, System::TEXT_FILE);
 }
 void RosHandling::LoadMap(const EmptySrv::Request::SharedPtr, EmptySrv::Response::SharedPtr)
