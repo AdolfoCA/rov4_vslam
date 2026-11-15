@@ -385,8 +385,8 @@ cv::Mat FrameDrawer::DrawStereoRight()
     if(im.channels() < 3)
         cvtColor(im, im, cv::COLOR_GRAY2BGR);
 
-    // Stessi colori della sinistra: verde = punto della mappa, blu = punto di odometria visiva.
-    // Prima dell'inizializzazione o senza tracking: giallo = ogni coppia stereo trovata.
+    // Same colours as the left image: green = map point, blue = visual odometry point.
+    // Before initialisation or without tracking: yellow = every stereo pair found.
     int nMap = 0, nVO = 0, nStereo = 0;
     const float r = 5;
     const size_t n = std::min(vCurrentKeys.size(), vuRight.size());
@@ -407,7 +407,7 @@ cv::Mat FrameDrawer::DrawStereoRight()
         }
     }
 
-    // barra di testo alta come quella della sinistra, cosi' le due immagini restano allineate
+    // text bar as tall as the left one, so the two images stay aligned
     stringstream s;
     s << "RIGHT (rectified) | stereo pairs: " << nStereo;
     if(state == Tracking::OK)
@@ -473,7 +473,7 @@ void FrameDrawer::Update(Tracking *pTracker)
     }
     else{
         N = mvCurrentKeys.size();
-        // per DrawStereoRight (Foxglove): immagine destra rettificata e colonne delle coppie stereo
+        // for DrawStereoRight (Foxglove): rectified right image and columns of the stereo pairs
         pTracker->mImRight.copyTo(mImRight);
         mvCurrentuRight = pTracker->mCurrentFrame.mvuRight;
     }

@@ -54,7 +54,7 @@ public:
 	void PublishLeftImg(const sensor_msgs::ImageConstPtr &img);
 	void PublishRightImg(const sensor_msgs::ImageConstPtr &img);
 	void PublishImgWithInfo(const sensor_msgs::ImageConstPtr &img);
-	// immagine destra con le coppie stereo (Foxglove); disegnata solo se qualcuno e' iscritto
+	// right image with the stereo pairs (Foxglove); drawn only if someone is subscribed
 	void PublishImgWithInfoRight(const sensor_msgs::ImageConstPtr &img);
 	bool HasImgWithInfoRightSubscribers() const;
 	void PublishImgMergeCandidate(const cv::Mat &img);
