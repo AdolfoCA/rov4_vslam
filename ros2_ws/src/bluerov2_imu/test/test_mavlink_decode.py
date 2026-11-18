@@ -152,6 +152,7 @@ def test_external_pressure_two_metres_of_seawater():
     )
     depth = (message.press_abs * HPA_TO_PA - 101325.0) / (1025.0 * 9.80665)
     assert abs(depth - 2.0) < 1e-3
+    assert abs(message.temperature * 1.0e-2 - 12.0) < 1e-9     # water temperature, cdegC
 
 
 def test_vfr_hud_altitude_is_negative_depth():

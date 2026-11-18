@@ -37,6 +37,7 @@ groups:
                                          # reference to compare a SLAM attitude against
       - depth/pressure                   # external Bar30 pressure (raw, vehicle-stamped)
       - depth/ardusub_z                  # ArduSub's depth [m], negative below the surface
+      - depth/temperature                # water temperature (Bar30), for the DVL speed of sound
 
   dvl:
     enabled: true

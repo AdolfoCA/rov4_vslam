@@ -43,7 +43,8 @@
     publish_pressure: true
     publish_temperature: true
     # Depth: external Bar30 pressure (depth/pressure) and ArduSub's depth estimate
-    # (depth/ardusub_z, negative below the surface). ROV depth + DVL altitude = seabed
+    # (depth/ardusub_z, negative below the surface) and water temperature (depth/temperature,
+    # for the DVL speed of sound). ROV depth + DVL altitude = seabed
     # height below the sea level, to check the trajectory against a bathymetry map.
     publish_depth: true
     depth_rate_hz: 10.0

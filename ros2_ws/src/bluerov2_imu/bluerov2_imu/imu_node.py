@@ -39,13 +39,16 @@ Published topics (relative to the node's namespace)
 ``depth/pressure``    sensor_msgs/FluidPressure external Bar30 pressure (SCALED_PRESSURE2), if enabled
 ``depth/ardusub_z``   geometry_msgs/PointStamped ArduSub's depth estimate (VFR_HUD.alt) in point.z [m],
                                                 negative below the surface, if enabled
+``depth/temperature`` sensor_msgs/Temperature   water temperature from the external Bar30 (SCALED_PRESSURE2), if enabled
 
 Depth: ``depth/pressure`` is the raw absolute pressure of the external sensor, stamped with
 the vehicle clock, so depth can be recomputed offline with the surface pressure and the
 water density (ArduSub: BARO2_GND_PRESS, BARO_SPEC_GRAV). ``depth/ardusub_z`` is ArduSub's
 own value, already calibrated; VFR_HUD carries no vehicle time, so it is stamped on arrival
 (+ timestamp_offset_s). Together with the DVL altitude they give the seabed height below the
-sea level (ROV depth + altitude), to compare against a bathymetry map.
+sea level (ROV depth + altitude), to compare against a bathymetry map. ``depth/temperature`` gives the water
+temperature for the DVL speed of sound (with the salinity of the day); the sensor sits on the end cap of the
+electronics tube, so read it after a few minutes in the water, away from the surface heating.
 
 A note on covariances
 ---------------------
@@ -176,6 +179,9 @@ class BlueRov2ImuNode(Node):
         )
         self._pub_depth_z = self.create_publisher(
             PointStamped, "depth/ardusub_z", qos_profile_sensor_data
+        )
+        self._pub_depth_temperature = self.create_publisher(
+            Temperature, "depth/temperature", qos_profile_sensor_data
         )
 
         # --- State --------------------------------------------------------------------
@@ -505,6 +511,12 @@ class BlueRov2ImuNode(Node):
         pressure.fluid_pressure = float(msg.press_abs) * HPA_TO_PA
         pressure.variance = 0.0
         self._pub_depth_pressure.publish(pressure)
+        # Water temperature measured by the same sensor (cdegC).
+        temperature = Temperature()
+        temperature.header = pressure.header
+        temperature.temperature = int(getattr(msg, "temperature", 0)) * CENTI_DEG_TO_DEG
+        temperature.variance = 0.0  # unknown
+        self._pub_depth_temperature.publish(temperature)
 
     def _on_vfr_hud(self, msg) -> None:
         if not bool(self.get_parameter("publish_depth").value):
