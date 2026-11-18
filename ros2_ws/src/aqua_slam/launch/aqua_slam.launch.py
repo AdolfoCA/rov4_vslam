@@ -29,8 +29,9 @@ Arguments:
     dvl_min_altitude:=0.3     DVL reports below this altitude [m] are not used (0 = keep all),
                               as the ROS 1 converter did for every validated run
     dvl_drop_zero_beam:=true  DVL reports with a beam velocity of exactly 0 are not used: AQUA would
-                              fall back to the velocity vector, turned by 180 deg on this ROV
-                              (the A50 is mounted backwards)
+                              fall back to the velocity vector, whose frame with respect to the
+                              beams is not reliable on this ROV (same on 10/11, turned by 180 deg
+                              on 12/11)
     process_rate_hz:=15       stereo pairs processed per second (0 = all). Must equal
                               Camera.fps in the settings. 15 Hz keeps real time on this laptop
                               also with Foxglove open on it; same accuracy as 20 Hz on the pool

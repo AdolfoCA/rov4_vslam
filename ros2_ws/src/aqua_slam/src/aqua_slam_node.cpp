@@ -210,9 +210,10 @@ public:
 
 	// DVL reports with a beam velocity of exactly 0 (that beam had no valid return) are skipped.
 	// AQUA-SLAM rebuilds the velocity from the 4 beam velocities; when one is 0 it falls back to the
-	// velocity vector of the report, which on this ROV is in a frame turned by 180 deg about z with
-	// respect to the beam reconstruction (the A50 is mounted backwards): those reports were
-	// integrated with x and y reversed (pool, 10/11: 3.6% of the reports; harbour: 0.2-1.2%).
+	// velocity vector of the report. The frame of that vector with respect to the beam reconstruction
+	// is not reliable on this ROV: the same on 10/11 (pool), turned by 180 deg about z on 12/11
+	// (harbour), with an identical DVL configuration. Skipping keeps AQUA on the beams only.
+	// Affected reports: pool 10/11 3.6%, harbour 12/11 0.2-1.2%; no measurable effect on accuracy.
 	bool dvlDropZeroBeam = true;
 	std::atomic<uint64_t> mDvlZeroBeam{0};
 

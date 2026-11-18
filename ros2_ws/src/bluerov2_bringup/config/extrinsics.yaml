@@ -65,9 +65,12 @@
       parent: base_link
       child: dvl_link
       translation: [0.0, 0.0, -0.10]    # TODO measure: ~10 cm below base_link
-      # Mounted backwards: the A50's arrow (its x axis) points to the stern. Checked on the harbour
-      # bag porto_slam_2 (2026-11-18): the velocity vector of dvl/report has x and y opposite to the
-      # ROV motion measured by the SLAM, and dead reckoning with yaw 180 drifts 5-6 cm over 10-30 s.
+      # Mounted backwards: the A50's arrow (its x axis) points to the stern. On the harbour bags of
+      # 2026-11-12 the velocity vector of dvl/report has x and y opposite to the ROV motion, so yaw
+      # 180 here. WARNING: on the pool bags of 2026-11-10 the same vector agreed with the motion
+      # without any rotation (identical DVL configuration): the frame of the vector is not reliable.
+      # AQUA-SLAM and the analysis tools rebuild the velocity from the 4 beams instead; do not trust
+      # dead_reckoning_node (which uses the vector) until this is understood.
       rpy: [0.0, 0.0, 180.0]
       units: degrees
 
