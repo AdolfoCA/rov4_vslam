@@ -159,10 +159,10 @@ const calWater = () =>
     topicName: `${CAL}/set_water`,
     datatype: "std_msgs/msg/String",
     buttonText: "Set water",
-    buttonTooltip: "\"<temp degC> <salinity ppt>\": \"12 0\" fresh, \"10 35\" sea; \"\" = keep sound speed",
+    buttonTooltip: "\"<temp degC> <salinity ppt>\": \"10 10\" harbour (Oresund, brackish), \"12 0\" fresh; \"\" = keep sound speed",
     buttonColor: "#3e63dd",
     advancedView: true,
-    value: JSON.stringify({ data: "12 0" }, null, 2),
+    value: JSON.stringify({ data: "10 10" }, null, 2),
   });
 const calStatus = () => raw(`${CAL}/status.data`);
 const calBlock = () =>

@@ -99,12 +99,18 @@ Once the session is ready, float the vehicle **at the surface, disarmed and stil
 (transducers in the water), then in a second shell:
 
 ```bash
-ros2 run bluerov2_dvl dvl_calibrate --water-temp 12 --salinity 0   # fresh water, 12 °C
-ros2 run bluerov2_dvl dvl_calibrate --water-temp 10 --salinity 35  # sea water
+ros2 run bluerov2_dvl dvl_calibrate --water-temp 10 --salinity 10  # harbour (Oresund, brackish)
+ros2 run bluerov2_dvl dvl_calibrate --water-temp 12 --salinity 0   # fresh water (pool), 12 °C
 ros2 run bluerov2_dvl dvl_calibrate --dry-run                      # check only
 ```
 
-Or from Foxglove, **DVL tab**: put `"12 0"` (temperature °C, salinity ppt) in *Set
+The Oresund at Skovshoved is brackish: on 2026-11-12 Copernicus (Baltic Sea Physics) gave 9.5 °C and
+salinity 9.7 at the surface, i.e. 1457 m/s. With `--salinity 35` (1497 m/s) the DVL velocities were
+2.8% too large, which explained the 3-5% scale difference between the DVL and the SLAM. Take the
+values of the day from Copernicus if they differ much; the Bar30 water temperature is on
+`/bluerov2/depth/temperature`.
+
+Or from Foxglove, **DVL tab**: put `"10 10"` (temperature °C, salinity ppt; `"12 0"` in fresh water) in *Set
 water*, then **Calibrate DVL**. The button calls `/bluerov2/dvl/calibration/start`
 (std_srvs/Trigger, node `dvl_calibration`, started by `bluerov2.launch.py`), which runs
 the same `dvl_calibrate`; progress and result are on `dvl/calibration/status`.

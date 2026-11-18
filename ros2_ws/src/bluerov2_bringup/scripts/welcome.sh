@@ -78,8 +78,8 @@ rov_help() {
     printf "$N" "open connection → ws://localhost:8765"
     printf "$N" "first time: Layout → Import from file → ros2_ws/src/foxglove/rov_layout.json"
     printf "$sep"
-    printf "$S" 3 "DVL calib" "ros2 run bluerov2_dvl dvl_calibrate --water-temp 12 --salinity 0"
-    printf "                 ${warn}%s${r}\n" "at the surface, disarmed, still · sea water: --salinity 35"
+    printf "$S" 3 "DVL calib" "ros2 run bluerov2_dvl dvl_calibrate --water-temp 10 --salinity 10"
+    printf "                 ${warn}%s${r}\n" "at the surface, disarmed, still · harbour (Oresund, brackish) · pool: --salinity 0"
     printf "$sep"
     # Where it lands: data/ (= ./data on the host), or the first external drive under the
     # host's /media, mounted at the same path (docker-compose.yaml).

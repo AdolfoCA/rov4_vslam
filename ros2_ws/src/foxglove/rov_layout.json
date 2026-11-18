@@ -256,10 +256,10 @@
       "topicName": "/bluerov2/dvl/calibration/set_water",
       "datatype": "std_msgs/msg/String",
       "buttonText": "Set water",
-      "buttonTooltip": "\"<temp degC> <salinity ppt>\": \"12 0\" fresh, \"10 35\" sea; \"\" = keep sound speed",
+      "buttonTooltip": "\"<temp degC> <salinity ppt>\": \"10 10\" harbour (Oresund, brackish), \"12 0\" fresh; \"\" = keep sound speed",
       "buttonColor": "#3e63dd",
       "advancedView": true,
-      "value": "{\n  \"data\": \"12 0\"\n}"
+      "value": "{\n  \"data\": \"10 10\"\n}"
     },
     "RawMessages!rov19": {
       "topicPath": "/bluerov2/dvl/calibration/status.data",
