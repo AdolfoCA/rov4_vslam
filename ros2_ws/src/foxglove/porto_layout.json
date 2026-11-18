@@ -1,0 +1,139 @@
+{
+  "configById": {
+    "3D!aqua0": {
+      "cameraState": {
+        "distance": 45,
+        "perspective": true,
+        "phi": 45,
+        "thetaOffset": -30,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          15,
+          -10,
+          0
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 2000
+      },
+      "followMode": "follow-none",
+      "followTf": "porto",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "axisScale": 0.2
+        }
+      },
+      "topics": {
+        "/aqua_slam/sparse_map": {
+          "visible": true,
+          "pointSize": 3,
+          "pointShape": "circle",
+          "colorMode": "rgb",
+          "colorField": "rgb",
+          "decayTime": 0
+        },
+        "/aqua_slam/markers": {
+          "visible": true
+        },
+        "/aqua_slam/orb_path": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.02,
+          "gradient": [
+            "#3e63dd",
+            "#3e63dd"
+          ]
+        },
+        "/aqua_slam/integration_path": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.02,
+          "gradient": [
+            "#e5484d",
+            "#e5484d"
+          ]
+        },
+        "/aqua_slam/orb_pose": {
+          "visible": true,
+          "type": "arrow",
+          "color": "#3e63dd",
+          "arrowScale": [
+            0.3,
+            0.05,
+            0.05
+          ]
+        },
+        "/porto/lidar": {
+          "visible": true,
+          "pointSize": 2,
+          "pointShape": "circle",
+          "colorMode": "flat",
+          "flatColor": "#9aa0a6",
+          "decayTime": 0
+        },
+        "/porto/sonar": {
+          "visible": true,
+          "pointSize": 2,
+          "pointShape": "circle",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "colorField": "z",
+          "decayTime": 0
+        }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "size": 100,
+          "divisions": 20,
+          "frameId": "porto"
+        }
+      },
+      "publish": {
+        "type": "point"
+      }
+    },
+    "Image!aqua1": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_left/image_raw/compressed",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    },
+    "Image!aqua2": {
+      "imageMode": {
+        "imageTopic": "/bluerov2/multicam/aux_right/image_raw/compressed",
+        "synchronize": false,
+        "rotation": 0,
+        "flipHorizontal": false,
+        "flipVertical": false
+      },
+      "transformMarkers": false
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "first": {
+      "first": "Image!aqua1",
+      "second": "Image!aqua2",
+      "direction": "row",
+      "splitPercentage": 50
+    },
+    "second": "3D!aqua0",
+    "direction": "column",
+    "splitPercentage": 40
+  }
+}
