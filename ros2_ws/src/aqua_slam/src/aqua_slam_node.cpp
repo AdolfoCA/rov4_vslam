@@ -208,6 +208,14 @@ public:
 	double dvlMinAltitude = 0.3;
 	std::atomic<uint64_t> mDvlLowAltitude{0};
 
+	// DVL reports with a beam velocity of exactly 0 (that beam had no valid return) are skipped.
+	// AQUA-SLAM rebuilds the velocity from the 4 beam velocities; when one is 0 it falls back to the
+	// velocity vector of the report, which on this ROV is in a frame turned by 180 deg about z with
+	// respect to the beam reconstruction (the A50 is mounted backwards): those reports were
+	// integrated with x and y reversed (pool, 10/11: 3.6% of the reports; harbour: 0.2-1.2%).
+	bool dvlDropZeroBeam = true;
+	std::atomic<uint64_t> mDvlZeroBeam{0};
+
 	// Processed rate [Hz], 0 = every stereo pair. lastBucket: last kept floor(t * rate).
 	double processRateHz = 0.0;
 	long long lastBucket = std::numeric_limits<long long>::min();
@@ -240,6 +248,8 @@ int main(int argc, char **argv)
 	const double process_rate_hz = node->declare_parameter<double>("process_rate_hz", 0.0);
 	// DVL reports below this altitude [m] are not used (0 = no altitude cut).
 	const double dvl_min_altitude = node->declare_parameter<double>("dvl_min_altitude", 0.3);
+	// DVL reports with a beam velocity of exactly 0 are not used (see ImageGrabber::dvlDropZeroBeam).
+	const bool dvl_drop_zero_beam = node->declare_parameter<bool>("dvl_drop_zero_beam", true);
 	// read by the SLAM core (RosHandling, System, DenseMapper)
 	node->declare_parameter<string>("map_frame", "aqua_slam_map");
 	node->declare_parameter<string>("body_frame", "aqua_slam_camera");
@@ -268,6 +278,7 @@ int main(int argc, char **argv)
 	igb.maxQueue = static_cast<size_t>(std::max(1, max_image_queue));
 	igb.processRateHz = std::max(0.0, process_rate_hz);
 	igb.dvlMinAltitude = std::max(0.0, dvl_min_altitude);
+	igb.dvlDropZeroBeam = dvl_drop_zero_beam;
 	if (igb.processRateHz > 0.0) {
 		cv::FileStorage fs(settings_path, cv::FileStorage::READ);
 		const double fps = fs["Camera.fps"].empty() ? 0.0 : static_cast<double>(fs["Camera.fps"]);
@@ -304,17 +315,22 @@ int main(int argc, char **argv)
 
 	RCLCPP_INFO(node->get_logger(),
 	            "AQUA-SLAM running\n  left  %s\n  right %s\n  imu   %s\n  dvl   %s (velocity in %s)\n  transport %s, rectify %s\n"
-	            "  processed rate %s, image queue %zu, DVL min altitude %.2f m",
+	            "  processed rate %s, image queue %zu, DVL min altitude %.2f m, DVL zero-beam reports %s",
 	            left_topic.c_str(), right_topic.c_str(), imu_topic.c_str(), dvl_topic.c_str(), dvl_frame.c_str(),
 	            transport.c_str(), rectify ? "on" : "off",
 	            igb.processRateHz > 0.0 ? (std::to_string(static_cast<int>(std::lround(igb.processRateHz))) + " Hz").c_str()
 	                                    : "every pair",
-	            igb.maxQueue, igb.dvlMinAltitude);
+	            igb.maxQueue, igb.dvlMinAltitude, igb.dvlDropZeroBeam ? "dropped" : "kept");
 
 	std::thread sync_thread(&ImageGrabber::SyncWithImu, &igb);
 
 	// Report dropped frames: tracking slower than the cameras shows up here, not as RAM.
 	auto drop_timer = node->create_wall_timer(std::chrono::seconds(10), [&igb, &node]() {
+		const uint64_t zero = igb.mDvlZeroBeam.exchange(0);
+		if (zero > 0) {
+			RCLCPP_WARN(node->get_logger(), "DVL: %llu reports with a zero beam velocity not used in the last 10 s",
+			            static_cast<unsigned long long>(zero));
+		}
 		const uint64_t low = igb.mDvlLowAltitude.exchange(0);
 		if (low > 0) {
 			RCLCPP_WARN(node->get_logger(), "DVL below %.2f m: %llu reports not used in the last 10 s",
@@ -496,6 +512,12 @@ void ImageGrabber::SyncWithImu()
 				//skip bad DVL
 				if (!m->velocity_valid) {
 					BOOST_LOG_TRIVIAL(warning) << "skip bad DVL data";
+					mpDvlGb->dvlBuf.pop();
+					continue;
+				}
+				if (dvlDropZeroBeam && std::any_of(m->beams.begin(), m->beams.end(),
+				                                   [](const auto &b) { return b.velocity == 0.0; })) {
+					++mDvlZeroBeam;
 					mpDvlGb->dvlBuf.pop();
 					continue;
 				}

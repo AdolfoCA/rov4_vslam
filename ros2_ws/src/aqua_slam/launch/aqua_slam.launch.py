@@ -28,6 +28,9 @@ Arguments:
                               runs came out at 4-6.6 cm instead of 2.2-2.7 (pool bag, 4/11)
     dvl_min_altitude:=0.3     DVL reports below this altitude [m] are not used (0 = keep all),
                               as the ROS 1 converter did for every validated run
+    dvl_drop_zero_beam:=true  DVL reports with a beam velocity of exactly 0 are not used: AQUA would
+                              fall back to the velocity vector, turned by 180 deg on this ROV
+                              (the A50 is mounted backwards)
     process_rate_hz:=15       stereo pairs processed per second (0 = all). Must equal
                               Camera.fps in the settings. 15 Hz keeps real time on this laptop
                               also with Foxglove open on it; same accuracy as 20 Hz on the pool
@@ -77,6 +80,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("max_image_queue", default_value="8"),
         DeclareLaunchArgument("process_rate_hz", default_value="15"),
         DeclareLaunchArgument("dvl_min_altitude", default_value="0.3"),
+        DeclareLaunchArgument("dvl_drop_zero_beam", default_value="true"),
         DeclareLaunchArgument(
             "traj_path", default_value="/home/rosdev/data/aqua_slam_keyframes.txt"
         ),
@@ -108,6 +112,9 @@ def generate_launch_description() -> LaunchDescription:
                 ),
                 "dvl_min_altitude": ParameterValue(
                     LaunchConfiguration("dvl_min_altitude"), value_type=float
+                ),
+                "dvl_drop_zero_beam": ParameterValue(
+                    LaunchConfiguration("dvl_drop_zero_beam"), value_type=bool
                 ),
                 "traj_path": LaunchConfiguration("traj_path"),
                 "use_sim_time": ParameterValue(
