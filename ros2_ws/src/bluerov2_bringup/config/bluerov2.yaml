@@ -39,10 +39,14 @@
 
     publish_magnetic_field: true
     # The Navigator barometer sits inside the sealed enclosure: it measures hull
-    # pressure, not depth. Depth comes from the external Bar30, which this driver
-    # does not read.
+    # pressure, not depth (imu/pressure).
     publish_pressure: true
     publish_temperature: true
+    # Depth: external Bar30 pressure (depth/pressure) and ArduSub's depth estimate
+    # (depth/ardusub_z, negative below the surface). ROV depth + DVL altitude = seabed
+    # height below the sea level, to check the trajectory against a bathymetry map.
+    publish_depth: true
+    depth_rate_hz: 10.0
 
     # Stamp messages with the vehicle clock, mapped onto ROS time by a minimum-filter
     # offset estimator, instead of stamping on arrival. Set false to stamp on arrival.

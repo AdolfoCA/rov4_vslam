@@ -35,6 +35,8 @@ groups:
       - imu/temperature
       - imu/data                         # ArduSub's attitude estimate (processed, not raw):
                                          # reference to compare a SLAM attitude against
+      - depth/pressure                   # external Bar30 pressure (raw, vehicle-stamped)
+      - depth/ardusub_z                  # ArduSub's depth [m], negative below the surface
 
   dvl:
     enabled: true

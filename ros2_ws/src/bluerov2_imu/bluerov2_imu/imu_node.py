@@ -36,6 +36,16 @@ Published topics (relative to the node's namespace)
 ``imu/mag``           sensor_msgs/MagneticField magnetometer, if enabled
 ``imu/pressure``      sensor_msgs/FluidPressure barometer (in-hull), if enabled
 ``imu/temperature``   sensor_msgs/Temperature   IMU die temperature, if reported
+``depth/pressure``    sensor_msgs/FluidPressure external Bar30 pressure (SCALED_PRESSURE2), if enabled
+``depth/ardusub_z``   geometry_msgs/PointStamped ArduSub's depth estimate (VFR_HUD.alt) in point.z [m],
+                                                negative below the surface, if enabled
+
+Depth: ``depth/pressure`` is the raw absolute pressure of the external sensor, stamped with
+the vehicle clock, so depth can be recomputed offline with the surface pressure and the
+water density (ArduSub: BARO2_GND_PRESS, BARO_SPEC_GRAV). ``depth/ardusub_z`` is ArduSub's
+own value, already calibrated; VFR_HUD carries no vehicle time, so it is stamped on arrival
+(+ timestamp_offset_s). Together with the DVL altitude they give the seabed height below the
+sea level (ROV depth + altitude), to compare against a bathymetry map.
 
 A note on covariances
 ---------------------
@@ -55,6 +65,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from geometry_msgs.msg import PointStamped
 from sensor_msgs.msg import FluidPressure, Imu, MagneticField, Temperature
 
 from bluerov2_imu.frames import frd_to_flu, ned_frd_to_enu_flu, to_ros_quat
@@ -112,6 +123,9 @@ class BlueRov2ImuNode(Node):
         self.declare_parameter("publish_magnetic_field", True)
         self.declare_parameter("publish_pressure", True)
         self.declare_parameter("publish_temperature", True)
+        # External depth sensor (Bar30) and ArduSub's depth: see depth/* in the module docstring.
+        self.declare_parameter("publish_depth", True)
+        self.declare_parameter("depth_rate_hz", 10.0)
 
         self.declare_parameter("use_mavlink_time", True)
         self.declare_parameter("clock_window_seconds", 30.0)
@@ -156,6 +170,12 @@ class BlueRov2ImuNode(Node):
         )
         self._pub_temperature = self.create_publisher(
             Temperature, "imu/temperature", qos_profile_sensor_data
+        )
+        self._pub_depth_pressure = self.create_publisher(
+            FluidPressure, "depth/pressure", qos_profile_sensor_data
+        )
+        self._pub_depth_z = self.create_publisher(
+            PointStamped, "depth/ardusub_z", qos_profile_sensor_data
         )
 
         # --- State --------------------------------------------------------------------
@@ -247,6 +267,8 @@ class BlueRov2ImuNode(Node):
             "SCALED_IMU2": self._on_raw_imu,
             "SCALED_IMU3": self._on_raw_imu,
             "SCALED_PRESSURE": self._on_scaled_pressure,
+            "SCALED_PRESSURE2": self._on_depth_pressure,
+            "VFR_HUD": self._on_vfr_hud,
         }
         wanted = list(handlers.keys())
         last_request = self.get_clock().now()
@@ -295,6 +317,11 @@ class BlueRov2ImuNode(Node):
                     float(self.get_parameter("pressure_rate_hz").value),
                 )
             )
+
+        if bool(self.get_parameter("publish_depth").value):
+            depth_rate = float(self.get_parameter("depth_rate_hz").value)
+            requests.append((mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE2, depth_rate))
+            requests.append((mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD, depth_rate))
 
         for message_id, rate_hz in requests:
             if rate_hz <= 0.0:
@@ -466,6 +493,31 @@ class BlueRov2ImuNode(Node):
         pressure.fluid_pressure = float(msg.press_abs) * HPA_TO_PA
         pressure.variance = 0.0
         self._pub_pressure.publish(pressure)
+
+    def _on_depth_pressure(self, msg) -> None:
+        if not bool(self.get_parameter("publish_depth").value):
+            return
+        # SCALED_PRESSURE2 is the external Bar30 on a BlueROV2: water pressure, i.e. depth.
+        stamp_ns = self._stamp_ns(int(getattr(msg, "time_boot_ms", 0)) * 1_000_000)
+        pressure = FluidPressure()
+        pressure.header.stamp = self._to_ros_stamp(stamp_ns)
+        pressure.header.frame_id = "depth_sensor"
+        pressure.fluid_pressure = float(msg.press_abs) * HPA_TO_PA
+        pressure.variance = 0.0
+        self._pub_depth_pressure.publish(pressure)
+
+    def _on_vfr_hud(self, msg) -> None:
+        if not bool(self.get_parameter("publish_depth").value):
+            return
+        # ArduSub reports its depth estimate as altitude: negative below the surface.
+        # VFR_HUD has no vehicle timestamp, so it is stamped on arrival.
+        out = PointStamped()
+        out.header.stamp = self._to_ros_stamp(
+            self.get_clock().now().nanoseconds + self._timestamp_offset_ns
+        )
+        out.header.frame_id = "depth_sensor"
+        out.point.z = float(msg.alt)
+        self._pub_depth_z.publish(out)
 
     # -- Helpers ------------------------------------------------------------------
 

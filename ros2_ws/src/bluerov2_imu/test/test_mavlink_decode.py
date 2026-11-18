@@ -139,6 +139,30 @@ def test_pressure_scale_matches_one_atmosphere():
     assert abs(message.press_abs * HPA_TO_PA - 101325.0) < 1e-2
 
 
+def test_external_pressure_two_metres_of_seawater():
+    # SCALED_PRESSURE2 (Bar30): 1013.25 hPa at the surface + 2 m of seawater (1025 kg/m^3)
+    press_hpa = 1013.25 + 1025.0 * 9.80665 * 2.0 / 100.0
+    message = _roundtrip(
+        mav.MAVLink_scaled_pressure2_message(
+            time_boot_ms=1000,
+            press_abs=press_hpa,
+            press_diff=0.0,
+            temperature=1200,
+        )
+    )
+    depth = (message.press_abs * HPA_TO_PA - 101325.0) / (1025.0 * 9.80665)
+    assert abs(depth - 2.0) < 1e-3
+
+
+def test_vfr_hud_altitude_is_negative_depth():
+    message = _roundtrip(
+        mav.MAVLink_vfr_hud_message(
+            airspeed=0.0, groundspeed=0.0, heading=0, throttle=0, alt=-1.75, climb=0.0
+        )
+    )
+    assert abs(message.alt - (-1.75)) < 1e-6
+
+
 def test_attitude_quaternion_field_order_matches_the_conversion():
     """MAVLink sends (q1..q4) = (w, x, y, z); feeding them in that order must hold.
 
