@@ -1,0 +1,18 @@
+pier_calibration:
+  ros__parameters:
+    # Origin of the harbour frame "porto": the usual start point on the pier at Skovshoved Havn.
+    # x = grid East (UTM 32N), y = grid North, z up, 0 = sea level.
+    origin_lat: 55.76121385912307
+    origin_lon: 12.600330511855978
+    # Where the stern touches the east edge of the pier (default: the same start point).
+    pier_lat: 55.76121385912307
+    pier_lon: 12.600330511855978
+    # Nose direction at the pier, deg counter-clockwise from grid East: the pier edge runs
+    # true north-south, so the nose points true East = +3.0 deg (meridian convergence).
+    nose_yaw_deg: 3.0
+    stern_offset: 0.23        # IMU distance from the stern [m]
+    still_s: 10.0             # still window [s] (hold 15-20 s to be safe)
+    still_std_max: 0.02       # gyro std norm allowed while still [rad/s]
+    motion_std: 0.03          # gyro std norm over 1 s that starts the bridge [rad/s]
+    average_s: 3.0            # seconds of SLAM poses averaged
+    max_bridge_s: 180.0       # fail if the SLAM does not track within this time after leaving the pier
